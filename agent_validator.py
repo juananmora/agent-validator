@@ -1037,17 +1037,60 @@ Se generaron **{len(report.created_files)}** archivos durante las pruebas:
 
 async def main():
     """Punto de entrada principal."""
-    import sys
+    import argparse
     
-    if len(sys.argv) < 2:
-        # Usar agente de ejemplo
-        agent_file = Path("/workspaces/test-sdk-copilot/agents/python_expert.md")
-    else:
-        agent_file = Path(sys.argv[1])
+    parser = argparse.ArgumentParser(
+        description="Validador de Custom Agents para Copilot SDK",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ejemplos:
+  python agent_validator.py agents/python_expert.md
+  python agent_validator.py agents/sql_expert.md --threshold 80
+  python agent_validator.py agents/devops.md --llm-judge true --output report.json
+        """
+    )
+    parser.add_argument(
+        "agent_file",
+        nargs="?",
+        default="agents/python_expert.md",
+        help="Ruta al archivo del agente (.md)"
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=70.0,
+        help="Score mínimo para pasar el Quality Gate (default: 70)"
+    )
+    parser.add_argument(
+        "--llm-judge",
+        type=str,
+        default="true",
+        help="Activar evaluación LLM-as-judge (true/false)"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Ruta para guardar el reporte JSON (default: <agent>.report.json)"
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=True,
+        help="Mostrar salida detallada"
+    )
+    
+    args = parser.parse_args()
+    
+    agent_file = Path(args.agent_file)
+    threshold = args.threshold
+    enable_llm_judge = args.llm_judge.lower() == "true"
+    output_file = Path(args.output) if args.output else None
+    verbose = args.verbose
     
     if not agent_file.exists():
         print(f"❌ Archivo no encontrado: {agent_file}")
-        return
+        return 1
     
     # Cargar reporte anterior si existe
     report_json_file = agent_file.with_suffix(".report.json")
@@ -1116,29 +1159,46 @@ async def main():
             for r in report.results
         ],
         "created_files": report.created_files,
-        "baseline_comparison": report.baseline_comparison
+        "baseline_comparison": report.baseline_comparison,
+        "threshold": threshold,
+        "quality_gate_passed": report.score >= threshold
     }
     
-    # Guardar reporte JSON principal (sobrescribe el anterior)
-    report_json_file.write_text(json.dumps(report_dict, indent=2, ensure_ascii=False))
-    print(f"📄 Reporte JSON guardado en: {report_json_file}")
+    # Guardar reporte JSON (usar --output si se especifica)
+    if output_file:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(json.dumps(report_dict, indent=2, ensure_ascii=False))
+        print(f"📄 Reporte JSON guardado en: {output_file}")
+    else:
+        report_json_file.write_text(json.dumps(report_dict, indent=2, ensure_ascii=False))
+        print(f"📄 Reporte JSON guardado en: {report_json_file}")
     
     # Guardar histórico con timestamp
     history_file = save_historical_report(agent_file, report_dict, comparison)
     print(f"📜 Histórico guardado en: {history_file}")
     
-    # Mostrar resultado final
+    # Mostrar resultado final y Quality Gate
     print(f"\n🎯 Score Final: {report.score}/100")
+    print(f"📊 Threshold: {threshold}")
+    
+    if report.score >= threshold:
+        print(f"✅ QUALITY GATE PASSED (score >= {threshold})")
+    else:
+        print(f"❌ QUALITY GATE FAILED (score < {threshold})")
     
     if comparison:
         if comparison.is_regression:
             print("⚠️  REGRESIÓN DETECTADA - Revisar cambios en el agente")
-            return 1  # Exit code para CI/CD
         elif comparison.score_diff > 0:
-            print(f"✅ Mejora de {comparison.score_diff:.1f} puntos respecto a la versión anterior")
+            print(f"📈 Mejora de {comparison.score_diff:.1f} puntos respecto a la versión anterior")
     
+    # Exit code basado en Quality Gate
+    if report.score < threshold:
+        return 1
     return 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code if exit_code else 0)
