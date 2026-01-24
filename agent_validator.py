@@ -206,7 +206,7 @@ async def run_test_with_agent(
     client: CopilotClient,
     prompt: str,
     agent_config: dict | None = None,
-    timeout: float = 60.0
+    timeout: float = 120.0
 ) -> tuple[str, float, list[str]]:
     """
     Ejecuta un test con o sin agente personalizado.

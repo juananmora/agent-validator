@@ -1,0 +1,69 @@
+{
+  "agent_name": "python_senior_architect",
+  "total_tests": 3,
+  "passed_tests": 2,
+  "failed_tests": 1,
+  "avg_latency_ms": 27026.436010996502,
+  "score": 72.6,
+  "success_rate": 66.66666666666666,
+  "timestamp": "2026-01-24T21:52:29.008035",
+  "results": [
+    {
+      "test_name": "test_async_function",
+      "passed": true,
+      "latency_ms": 34363.33250999451,
+      "response_preview": "[RESULT]\nIntent logged\n\n[CODE:create]\n\"\"\"\nAsync URL downloader using aiohttp and asyncio.gather for parallel downloads.\n\"\"\"\n\nimport asyncio\nimport logging\nfrom typing import List, Dict, Optional, Any\n",
+      "contains_failed": [],
+      "not_contains_failed": [],
+      "llm_score": 100.0,
+      "llm_passed": true,
+      "llm_reasoning": "El código cumple completamente: tiene async def download_urls (línea 102), usa await (líneas 56, 139), y utiliza asyncio.gather para descargas paralelas (línea 139). Implementación correcta y funcional."
+    },
+    {
+      "test_name": "test_security_sql",
+      "passed": false,
+      "latency_ms": 31475.97575187683,
+      "response_preview": "[RESULT]\nIntent logged\n\n[CODE:create]\n\"\"\"\nUser search module with secure SQL query execution.\n\nThis module provides functionality to search for users in a database\nusing parameterized queries to preve",
+      "contains_failed": [],
+      "not_contains_failed": [],
+      "llm_score": 35.0,
+      "llm_passed": false,
+      "llm_reasoning": "La respuesta está incompleta y no muestra la implementación crítica de cursor.execute con placeholders ?, por lo que no se puede verificar si cumple con el requisito de prevenir SQL injection."
+    },
+    {
+      "test_name": "test_error_handling",
+      "passed": true,
+      "latency_ms": 15239.999771118164,
+      "response_preview": "[RESULT]\nIntent logged\n\n[CODE:create]\nimport csv\n\n\ndef process_csv(filename):\n    \"\"\"\n    Lee un archivo CSV y retorna su contenido como lista de diccionarios.\n    \n    Args:\n        filename: Ruta al",
+      "contains_failed": [],
+      "not_contains_failed": [],
+      "llm_score": 100.0,
+      "llm_passed": true,
+      "llm_reasoning": "El código cumple perfectamente con todos los requisitos: usa context manager 'with open()', implementa try/except para FileNotFoundError, lee CSV correctamente, tiene buena documentación y sigue mejores prácticas."
+    }
+  ],
+  "created_files": [
+    "/workspaces/test-sdk-copilot/async_downloader.py",
+    "/workspaces/test-sdk-copilot/csv_processor.py",
+    "/workspaces/test-sdk-copilot/user_search.py"
+  ],
+  "baseline_comparison": {
+    "latency_diff_avg_ms": 15517.0210202535,
+    "baseline_results": {
+      "test_async_function": {
+        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n.devcontainer\n.git\n.github\n.gitignore\n.venv\n.vscode\nREADME.md\n__pyc",
+        "latency_ms": 12967.225551605225
+      },
+      "test_security_sql": {
+        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n.devcontainer\n.git\n.github\n.gitignore\n.venv\n.vscode\nREADME.md\n__pyc",
+        "latency_ms": 12917.380571365356
+      },
+      "test_error_handling": {
+        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n1. import csv\n2. \n3. \n4. def process_csv(filename):\n5.     \"\"\"\n6.  ",
+        "latency_ms": 8643.638849258423
+      }
+    }
+  },
+  "threshold": 70.0,
+  "quality_gate_passed": true
+}
