@@ -138,42 +138,101 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           COPILOT_CLI_PATH: /usr/local/bin/copilot
         run: |
+          set -x  # Enable command tracing
+          
+          echo "=========================================="
+          echo "🚀 Starting Agent Validation Process"
+          echo "=========================================="
+          echo "📅 Timestamp: $(date)"
+          echo "📁 Working directory: $(pwd)"
+          echo "🐍 Python version: $(python --version)"
+          echo ""
+          
           AGENTS="${{ steps.detect.outputs.agents }}"
+          echo "📋 Agents to validate: $AGENTS"
+          echo ""
+          
           RESULTS_DIR="validation_results"
           mkdir -p $RESULTS_DIR
+          echo "📂 Results directory created: $RESULTS_DIR"
           
           OVERALL_PASSED=true
           SUMMARY=""
+          AGENT_COUNT=0
+          TOTAL_AGENTS=$(echo "$AGENTS" | wc -w)
+          
+          echo "📊 Total agents to process: $TOTAL_AGENTS"
+          echo ""
           
           for agent in $AGENTS; do
+            AGENT_COUNT=$((AGENT_COUNT + 1))
             AGENT_PATH="agents/$agent"
+            
+            echo "=========================================="
+            echo "🔄 [$AGENT_COUNT/$TOTAL_AGENTS] Validating: $agent"
+            echo "=========================================="
+            echo "📄 Agent path: $AGENT_PATH"
+            echo "⏰ Start time: $(date +%H:%M:%S)"
+            
             if [ -f "$AGENT_PATH" ]; then
-              echo "🔄 Validating: $agent"
+              echo "✅ Agent file exists"
+              echo "📏 File size: $(wc -c < "$AGENT_PATH") bytes"
+              echo ""
+              echo "🔧 Running validator with:"
+              echo "   --threshold: ${{ env.QUALITY_THRESHOLD }}"
+              echo "   --llm-judge: ${{ env.ENABLE_LLM_JUDGE }}"
+              echo "   --output: $RESULTS_DIR/${agent%.md}.json"
+              echo ""
+              echo ">>> Validator output start <<<"
               
-              # Ejecutar validador
-              python agent_validator.py "$AGENT_PATH" \
+              # Ejecutar validador con unbuffered output
+              python -u agent_validator.py "$AGENT_PATH" \
                 --threshold ${{ env.QUALITY_THRESHOLD }} \
                 --llm-judge ${{ env.ENABLE_LLM_JUDGE }} \
                 --output "$RESULTS_DIR/${agent%.md}.json" \
+                --verbose \
                 2>&1 | tee "$RESULTS_DIR/${agent%.md}.log" || true
               
+              echo ">>> Validator output end <<<"
+              echo "⏰ End time: $(date +%H:%M:%S)"
+              
               # Verificar resultado
+              echo ""
+              echo "📊 Checking validation results..."
               if [ -f "$RESULTS_DIR/${agent%.md}.json" ]; then
+                echo "✅ JSON result file created"
                 SCORE=$(python -c "import json; print(json.load(open('$RESULTS_DIR/${agent%.md}.json'))['score'])" 2>/dev/null || echo "0")
                 PASSED=$(python -c "score=$SCORE; threshold=${{ env.QUALITY_THRESHOLD }}; print('true' if score >= threshold else 'false')")
                 
+                echo "📈 Score: $SCORE"
+                echo "🎯 Threshold: ${{ env.QUALITY_THRESHOLD }}"
+                echo "✅ Passed: $PASSED"
+                
                 if [ "$PASSED" == "false" ]; then
                   OVERALL_PASSED=false
+                  echo "❌ Agent did NOT pass quality gate"
+                else
+                  echo "✅ Agent passed quality gate"
                 fi
                 
                 SUMMARY="$SUMMARY\n| $agent | $SCORE | $PASSED |"
               else
+                echo "❌ JSON result file NOT created - validation failed"
+                echo "📋 Log file contents:"
+                cat "$RESULTS_DIR/${agent%.md}.log" 2>/dev/null || echo "(no log file)"
                 OVERALL_PASSED=false
                 SUMMARY="$SUMMARY\n| $agent | ERROR | false |"
               fi
+            else
+              echo "❌ Agent file does NOT exist: $AGENT_PATH"
             fi
+            echo ""
           done
           
+          echo "=========================================="
+          echo "🏁 Validation Complete"
+          echo "=========================================="
+          echo "📊 Overall passed: $OVERALL_PASSED"
           echo "passed=$OVERALL_PASSED" >> $GITHUB_OUTPUT
           echo -e "$SUMMARY" > "$RESULTS_DIR/summary.txt"
           
