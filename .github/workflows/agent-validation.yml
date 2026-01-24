@@ -106,12 +106,21 @@ jobs:
             AGENTS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^agents/.*\.md$' | xargs -I {} basename {} || true)
           fi
           
-          # Si no hay agentes modificados, validar todos
+          # Si no hay agentes modificados, validar todos (excluyendo archivos .report.md)
           if [ -z "$AGENTS" ]; then
-            AGENTS=$(ls agents/*.md 2>/dev/null | xargs -I {} basename {} || echo "")
+            AGENTS=$(ls agents/*.md 2>/dev/null | grep -v '\.report\.md$' | xargs -I {} basename {} || echo "")
           fi
           
-          echo "agents=$AGENTS" >> $GITHUB_OUTPUT
+          # Filter out any .report.md files that might have been included
+          AGENTS=$(echo "$AGENTS" | tr ' ' '\n' | grep -v '\.report\.md$' | tr '\n' ' ' | xargs)
+          
+          # Use heredoc delimiter for multi-line output (handles filenames with dots)
+          {
+            echo 'agents<<AGENTS_EOF'
+            echo "$AGENTS"
+            echo 'AGENTS_EOF'
+          } >> $GITHUB_OUTPUT
+          
           echo "### 📋 Agentes a validar:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           for agent in $AGENTS; do
