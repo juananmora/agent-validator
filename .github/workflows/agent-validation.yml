@@ -258,14 +258,21 @@ jobs:
             const resultsDir = 'validation_results';
             const threshold = ${{ env.QUALITY_THRESHOLD }};
             let overallPassed = true;
+            let totalScore = 0;
+            let agentCount = 0;
+            
             let reportContent = `## 🤖 Agent Validation Report\n\n`;
             reportContent += `**Quality Gate Threshold:** ${threshold}/100\n\n`;
-            reportContent += `### 📊 Results Summary\n\n`;
-            reportContent += `| Agent | Score | Status |\n`;
-            reportContent += `|-------|-------|--------|\n`;
             
             // Leer resultados JSON
             const files = fs.readdirSync(resultsDir).filter(f => f.endsWith('.json'));
+            
+            // Resumen ejecutivo
+            reportContent += `### 📊 Executive Summary\n\n`;
+            reportContent += `| Agent | Score | Tests | Status |\n`;
+            reportContent += `|-------|-------|-------|--------|\n`;
+            
+            const agentDetails = [];
             
             for (const file of files) {
               try {
@@ -274,38 +281,117 @@ jobs:
                 const score = data.score || 0;
                 const passed = score >= threshold;
                 const status = passed ? '✅ PASSED' : '❌ FAILED';
+                const testsPassed = data.passed_tests || 0;
+                const testsTotal = data.total_tests || 0;
                 
+                totalScore += score;
+                agentCount++;
                 if (!passed) overallPassed = false;
                 
-                reportContent += `| ${agentName} | ${score.toFixed(1)} | ${status} |\n`;
+                reportContent += `| \`${agentName}\` | **${score.toFixed(1)}** | ${testsPassed}/${testsTotal} | ${status} |\n`;
                 
-                // Añadir detalles si hay tests
-                if (data.test_results && data.test_results.length > 0) {
-                  reportContent += `\n<details>\n<summary>📋 ${agentName} - Test Details</summary>\n\n`;
-                  reportContent += `| Test | Status | LLM Score | Latency |\n`;
-                  reportContent += `|------|--------|-----------|----------|\n`;
-                  
-                  for (const test of data.test_results) {
-                    const testStatus = test.passed ? '✅' : '❌';
-                    const llmScore = test.llm_score ? test.llm_score.toFixed(1) : 'N/A';
-                    const latency = test.latency_ms ? `${test.latency_ms}ms` : 'N/A';
-                    reportContent += `| ${test.test_name} | ${testStatus} | ${llmScore} | ${latency} |\n`;
-                  }
-                  
-                  reportContent += `\n</details>\n`;
-                }
+                // Guardar detalles para después
+                agentDetails.push({ agentName, data, passed, score });
               } catch (e) {
                 console.error(`Error reading ${file}: ${e.message}`);
+                overallPassed = false;
               }
             }
             
-            // Estado final
-            reportContent += `\n---\n`;
-            reportContent += `### 🎯 Final Status: ${overallPassed ? '✅ **QUALITY GATE PASSED**' : '❌ **QUALITY GATE FAILED**'}\n`;
-            
-            if (!overallPassed) {
-              reportContent += `\n> ⚠️ One or more agents did not meet the quality threshold (${threshold}). Please review and improve the failing agents.\n`;
+            // Promedio de score
+            if (agentCount > 0) {
+              const avgScore = (totalScore / agentCount).toFixed(1);
+              reportContent += `\n**Average Score:** ${avgScore}/100\n`;
             }
+            
+            // Detalles por agente
+            reportContent += `\n---\n\n### 📋 Detailed Results\n\n`;
+            
+            for (const { agentName, data, passed, score } of agentDetails) {
+              const statusIcon = passed ? '✅' : '❌';
+              reportContent += `<details>\n<summary>${statusIcon} <strong>${agentName}</strong> — Score: ${score.toFixed(1)}/100</summary>\n\n`;
+              
+              // Métricas generales
+              reportContent += `#### 📈 Metrics\n\n`;
+              reportContent += `| Metric | Value |\n`;
+              reportContent += `|--------|-------|\n`;
+              reportContent += `| Tests Passed | ${data.passed_tests || 0}/${data.total_tests || 0} |\n`;
+              reportContent += `| Success Rate | ${data.success_rate ? data.success_rate.toFixed(1) : 0}% |\n`;
+              reportContent += `| Avg Latency | ${data.avg_latency_ms ? Math.round(data.avg_latency_ms) : 'N/A'}ms |\n`;
+              reportContent += `| Quality Gate | ${passed ? '✅ Passed' : '❌ Failed'} |\n`;
+              reportContent += `\n`;
+              
+              // Resultados por test
+              if (data.results && data.results.length > 0) {
+                reportContent += `#### 🧪 Test Results\n\n`;
+                reportContent += `| Test | LLM Score | Latency | Status |\n`;
+                reportContent += `|------|-----------|---------|--------|\n`;
+                
+                for (const test of data.results) {
+                  const testStatus = test.passed ? '✅' : '❌';
+                  const llmScore = test.llm_score ? `${test.llm_score.toFixed(0)}/100` : 'N/A';
+                  const latency = test.latency_ms ? `${Math.round(test.latency_ms)}ms` : 'N/A';
+                  reportContent += `| \`${test.test_name}\` | ${llmScore} | ${latency} | ${testStatus} |\n`;
+                }
+                reportContent += `\n`;
+                
+                // Detalles de tests fallidos
+                const failedTests = data.results.filter(t => !t.passed);
+                if (failedTests.length > 0) {
+                  reportContent += `#### ⚠️ Issues Detected\n\n`;
+                  
+                  for (const test of failedTests) {
+                    reportContent += `**${test.test_name}:**\n`;
+                    
+                    if (test.contains_failed && test.contains_failed.length > 0) {
+                      reportContent += `- Missing keywords: \`${test.contains_failed.join('`, `')}\`\n`;
+                    }
+                    if (test.not_contains_failed && test.not_contains_failed.length > 0) {
+                      reportContent += `- 🔴 Forbidden patterns found: \`${test.not_contains_failed.join('`, `')}\`\n`;
+                    }
+                    if (test.llm_reasoning) {
+                      reportContent += `- LLM Analysis: ${test.llm_reasoning}\n`;
+                    }
+                    reportContent += `\n`;
+                  }
+                }
+                
+                // Tests exitosos con detalles
+                const passedTests = data.results.filter(t => t.passed);
+                if (passedTests.length > 0) {
+                  reportContent += `#### ✅ Passed Tests Details\n\n`;
+                  for (const test of passedTests) {
+                    if (test.llm_reasoning) {
+                      reportContent += `- **${test.test_name}**: ${test.llm_reasoning}\n`;
+                    }
+                  }
+                  reportContent += `\n`;
+                }
+              }
+              
+              reportContent += `</details>\n\n`;
+            }
+            
+            // Estado final con recomendaciones
+            reportContent += `---\n\n`;
+            reportContent += `### 🎯 Final Status\n\n`;
+            
+            if (overallPassed) {
+              reportContent += `✅ **QUALITY GATE PASSED**\n\n`;
+              reportContent += `All agents meet the quality threshold of ${threshold}/100.\n`;
+            } else {
+              reportContent += `❌ **QUALITY GATE FAILED**\n\n`;
+              reportContent += `> ⚠️ One or more agents did not meet the quality threshold (${threshold}/100).\n\n`;
+              
+              reportContent += `#### 📝 Recommendations\n\n`;
+              reportContent += `1. Review the failed tests and their LLM analysis\n`;
+              reportContent += `2. Check for missing required keywords in agent responses\n`;
+              reportContent += `3. Ensure no forbidden patterns (SQL injection, etc.) are used\n`;
+              reportContent += `4. Consider improving the agent prompt to be more explicit\n`;
+            }
+            
+            reportContent += `\n---\n`;
+            reportContent += `<sub>Generated by Agent Validator • Threshold: ${threshold} • Agents: ${agentCount}</sub>\n`;
             
             // Buscar comentario existente
             const { data: comments } = await github.rest.issues.listComments({
