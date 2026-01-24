@@ -54,26 +54,40 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          
-      - name: 🤖 Setup GitHub Copilot CLI
+
+      - name: 🔐 Validate COPILOT_GITHUB_TOKEN secret
         run: |
-          # Instalar GitHub CLI si no está presente
-          if ! command -v gh &> /dev/null; then
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh -y
+          if [ -z "$COPILOT_GITHUB_TOKEN" ]; then
+            echo "❌ COPILOT_GITHUB_TOKEN secret is not set"
+            echo "Please add COPILOT_GITHUB_TOKEN to your repository secrets"
+            echo "You can get this token from GitHub Copilot settings"
+            exit 1
           fi
+          echo "✅ COPILOT_GITHUB_TOKEN is configured"
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           
-          # Autenticar con GitHub CLI
-          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+      - name: 🤖 Install GitHub Copilot CLI
+        run: |
+          # Download official Copilot CLI installer script
+          curl -fsSL https://raw.githubusercontent.com/github/copilot-cli/main/install.sh -o /tmp/copilot-install.sh
           
-          # Instalar extensión de Copilot
-          gh extension install github/gh-copilot || true
+          # Execute the installer with the specified version
+          export VERSION=0.0.375 && sudo bash /tmp/copilot-install.sh
+          
+          # Cleanup
+          rm -f /tmp/copilot-install.sh
+          
+          # Verify installation
+          copilot --version
+          
+          # Set COPILOT_CLI_PATH for the SDK
+          echo "COPILOT_CLI_PATH=/usr/local/bin/copilot" >> $GITHUB_ENV
           
       - name: ✅ Verify Copilot SDK installation
         run: |
           python -c "from copilot import CopilotClient; print('✅ Copilot SDK imported successfully')"
+          echo "Copilot CLI path: $(which copilot)"
 
       # ============================================
       # 2. DETECT CHANGED AGENTS
@@ -111,6 +125,9 @@ jobs:
       # ============================================
       - name: 🧪 Run Agent Validator
         id: validate
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_CLI_PATH: /usr/local/bin/copilot
         run: |
           AGENTS="${{ steps.detect.outputs.agents }}"
           RESULTS_DIR="validation_results"
