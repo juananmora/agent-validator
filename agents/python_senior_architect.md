@@ -1,4 +1,4 @@
-# Python Senior Architect Agent
+# Python Senior Architect Agent by Jon
 
 ## Metadata
 - **name**: python_senior_architect
