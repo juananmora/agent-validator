@@ -206,7 +206,7 @@ async def run_test_with_agent(
     client: CopilotClient,
     prompt: str,
     agent_config: dict | None = None,
-    timeout: float = 120.0
+    timeout: float = 180.0
 ) -> tuple[str, float, list[str]]:
     """
     Ejecuta un test con o sin agente personalizado.
@@ -329,7 +329,7 @@ async def evaluate_with_llm(
     prompt: str,
     response: str,
     expected_behavior: str,
-    timeout: float = 30.0
+    timeout: float = 60.0
 ) -> tuple[float, bool, str]:
     """
     Evalúa la respuesta usando Copilot como juez (LLM-as-judge).
@@ -360,7 +360,7 @@ async def evaluate_with_llm(
 {expected_behavior}
 
 ## Respuesta del Agente
-{response[:2000]}
+{response[:4000]}
 
 ## Instrucciones de Evaluación
 Evalúa la respuesta considerando:
