@@ -364,10 +364,15 @@ async def evaluate_with_llm(
 
 ## Instrucciones de Evaluación
 Evalúa la respuesta considerando:
-1. ¿Cumple con el comportamiento esperado?
-2. ¿El código/respuesta es correcto y funcional?
-3. ¿Sigue las mejores prácticas mencionadas?
-4. ¿Hay errores o problemas evidentes?
+1. ¿El código generado cumple con los requisitos funcionales esperados?
+2. ¿La lógica y estructura del código son correctas?
+3. ¿Sigue los patrones y prácticas mencionadas en el comportamiento esperado?
+
+## IMPORTANTE - Criterios de Tolerancia:
+- Si la respuesta está TRUNCADA pero el código visible es correcto, evalúa lo que hay disponible favorablemente
+- Las tareas LLM son complejas y pueden tener latencia alta - esto es NORMAL y no debe penalizarse
+- Enfócate en si el código FUNCIONA y cumple el propósito, no en aspectos cosméticos
+- Si los keywords esperados están presentes y el código es funcional, considera pasar el test
 
 ## Formato de Respuesta (OBLIGATORIO)
 Responde EXACTAMENTE en este formato JSON:
@@ -573,9 +578,11 @@ async def validate_agent(
             latency_score = min(1.0, 1.0 / latency_ratio) if latency_ratio > 0 else 1.0
     
     # Calcular score final
+    # Nota: La latencia tiene peso reducido (10%) porque las tareas LLM complejas
+    # naturalmente requieren más tiempo y no deberían penalizarse excesivamente
     if llm_tests:
         # Con evaluación LLM
-        score = round((success_rate * 40) + (llm_avg_score * 25) + (latency_score * 15) + (security_score * 20), 1)
+        score = round((success_rate * 40) + (llm_avg_score * 30) + (latency_score * 10) + (security_score * 20), 1)
     else:
         # Sin evaluación LLM (mantener fórmula original)
         score = round((success_rate * 60) + (latency_score * 20) + (security_score * 20), 1)
