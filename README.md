@@ -12,7 +12,7 @@ Este SDK proporciona una interfaz Python completa y moderna para comunicarse con
 - 🔐 Control granular de permisos
 - 📡 Sistema de eventos en tiempo real
 - 🎯 API simple e intuitiva basada en async/await
-- 🔌 Soporte para múltiples modelos (GPT-4, GPT-5, Claude, etc.)
+- 🔌 Soporte para múltiples modelos (GPT-4o, GPT-4o-mini, Claude, etc.)
 
 ---
 
@@ -245,7 +245,7 @@ def calculator(params: CalculatorParams) -> str:
 # Usar en una sesión
 session = await client.create_session({
     "tools": [calculator],
-    "model": "gpt-5"
+    "model": "gpt-4o"
 })
 ```
 
@@ -285,7 +285,7 @@ El módulo `types.py` proporciona todas las definiciones de tipos TypedDict para
 **SessionConfig** - Configuración de sesión:
 ```python
 {
-    "model": "gpt-5" | "claude-sonnet-4" | ...,
+    "model": "gpt-4o" | "claude-sonnet-4" | ...,
     "tools": List[Tool],
     "system_message": SystemMessageConfig,
     "available_tools": List[str],
@@ -337,7 +337,7 @@ async def main():
     await client.start()
 
     # Crear sesión
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session({"model": "gpt-4o"})
 
     # Esperar respuesta usando send_and_wait
     response = await session.send_and_wait({
@@ -366,7 +366,7 @@ async def main():
     })
     await client.start()
 
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session({"model": "gpt-4o"})
 
     done = asyncio.Event()
 
@@ -410,7 +410,7 @@ async def main():
 
     # Sesión con permisos automáticos (modo agente)
     session = await client.create_session({
-        "model": "gpt-5",
+        "model": "gpt-4o",
         # Aprobar automáticamente todas las solicitudes de permisos
         "on_permission_request": lambda req, ctx: {"kind": "approved"}
     })
@@ -470,7 +470,7 @@ async def main():
 
     # Crear sesión con herramienta personalizada
     session = await client.create_session({
-        "model": "gpt-5",
+        "model": "gpt-4o",
         "tools": [buscar_repositorio]
     })
 
@@ -497,7 +497,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session({"model": "gpt-4o"})
 
     response = await session.send_and_wait({
         "prompt": "Analiza este código y sugiere mejoras",
@@ -615,7 +615,7 @@ client = CopilotClient({
 
 ```python
 session = await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-4o",
     "provider": {
         "type": "openai",
         "base_url": "https://api.openai.com/v1",
@@ -629,7 +629,7 @@ session = await client.create_session({
 
 ```python
 session = await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-4o",
     "mcp_servers": {
         "mi-servidor": {
             "type": "local",

@@ -22,6 +22,9 @@ from typing import Any
 
 from copilot import CopilotClient
 
+# Modelo por defecto para las sesiones de Copilot
+DEFAULT_MODEL = "gpt-4o"
+
 
 @dataclass
 class TestCase:
@@ -290,7 +293,8 @@ async def run_test_with_agent(
     client: CopilotClient,
     prompt: str,
     agent_config: dict | None = None,
-    timeout: float = 180.0
+    timeout: float = 180.0,
+    model: str = DEFAULT_MODEL
 ) -> tuple[str, float, list[str]]:
     """
     Ejecuta un test con o sin agente personalizado.
@@ -300,13 +304,14 @@ async def run_test_with_agent(
         prompt: Prompt a enviar
         agent_config: Configuración del agente (None para baseline)
         timeout: Timeout en segundos
+        model: Modelo a usar (default: gpt-4o)
         
     Returns:
         Tuple con (respuesta_completa, latencia_ms, archivos_creados)
         La respuesta incluye mensajes del asistente + código de herramientas
     """
     session_config: dict[str, Any] = {
-        "model": "gpt-5",
+        "model": model,
         "on_permission_request": lambda req, ctx: {"kind": "approved"},
     }
     
@@ -413,7 +418,8 @@ async def evaluate_with_llm(
     prompt: str,
     response: str,
     expected_behavior: str,
-    timeout: float = 60.0
+    timeout: float = 60.0,
+    model: str = DEFAULT_MODEL
 ) -> tuple[float, bool, str]:
     """
     Evalúa la respuesta usando Copilot como juez (LLM-as-judge).
@@ -425,6 +431,7 @@ async def evaluate_with_llm(
         response: Respuesta del agente
         expected_behavior: Descripción del comportamiento esperado
         timeout: Timeout en segundos
+        model: Modelo a usar (default: gpt-4o)
         
     Returns:
         Tuple con (score 0-100, passed, reasoning)
@@ -472,7 +479,7 @@ Responde EXACTAMENTE en este formato JSON:
 
 Responde SOLO con el JSON, sin texto adicional."""
 
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session({"model": model})
     
     done = asyncio.Event()
     llm_response = ""
@@ -520,7 +527,8 @@ Responde SOLO con el JSON, sin texto adicional."""
 async def validate_agent(
     agent_file: Path,
     compare_baseline: bool = True,
-    verbose: bool = True
+    verbose: bool = True,
+    model: str = DEFAULT_MODEL
 ) -> ValidationReport:
     """
     Valida un agente ejecutando todos sus test cases.
@@ -529,6 +537,7 @@ async def validate_agent(
         agent_file: Ruta al archivo markdown del agente
         compare_baseline: Si comparar con el agente base
         verbose: Si imprimir progreso
+        model: Modelo a usar (default: gpt-4o)
         
     Returns:
         ValidationReport con todos los resultados
@@ -927,7 +936,8 @@ async def generate_markdown_report(
     report: ValidationReport,
     agent_def: AgentDefinition,
     client: CopilotClient,
-    comparison: HistoricalComparison | None = None
+    comparison: HistoricalComparison | None = None,
+    model: str = DEFAULT_MODEL
 ) -> str:
     """
     Genera un reporte en Markdown utilizando Copilot para análisis.
@@ -937,6 +947,7 @@ async def generate_markdown_report(
         agent_def: Definición del agente
         client: Cliente de Copilot
         comparison: Comparación histórica (opcional)
+        model: Modelo a usar (default: gpt-4o)
         
     Returns:
         Contenido del reporte en Markdown
@@ -1138,6 +1149,8 @@ Ejemplos:
   python agent_validator.py agents/python_expert.md
   python agent_validator.py agents/sql_expert.md --threshold 80
   python agent_validator.py agents/devops.md --llm-judge true --output report.json
+  python agent_validator.py agents/devops.md --model gpt-4o
+  python agent_validator.py agents/devops.md --model claude-sonnet-4
         """
     )
     parser.add_argument(
@@ -1170,6 +1183,12 @@ Ejemplos:
         default=True,
         help="Mostrar salida detallada"
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=DEFAULT_MODEL,
+        help=f"Modelo a usar para las sesiones (default: {DEFAULT_MODEL})"
+    )
     
     args = parser.parse_args()
     
@@ -1178,10 +1197,13 @@ Ejemplos:
     enable_llm_judge = args.llm_judge.lower() == "true"
     output_file = Path(args.output) if args.output else None
     verbose = args.verbose
+    model = args.model
     
     if not agent_file.exists():
         print(f"❌ Archivo no encontrado: {agent_file}")
         return 1
+    
+    print(f"🤖 Modelo: {model}")
     
     # Cargar reporte anterior si existe
     report_json_file = agent_file.with_suffix(".report.json")
@@ -1193,7 +1215,7 @@ Ejemplos:
         print("📂 Sin reporte anterior - primera ejecución")
     
     # Validar agente
-    report = await validate_agent(agent_file, compare_baseline=True, verbose=True)
+    report = await validate_agent(agent_file, compare_baseline=True, verbose=True, model=model)
     
     # Comparar con ejecución anterior
     comparison = compare_reports(report, previous_report)
