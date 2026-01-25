@@ -14,6 +14,7 @@ import asyncio
 import json
 import re
 import time
+import yaml
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -96,6 +97,9 @@ class HistoricalComparison:
 def parse_agent_markdown(file_path: Path) -> AgentDefinition:
     """
     Parsea un archivo markdown con la definición del agente.
+    Soporta dos formatos:
+    1. YAML frontmatter (nuevo): entre --- al inicio
+    2. Formato legacy con ## Metadata
     
     Args:
         file_path: Ruta al archivo markdown
@@ -104,6 +108,86 @@ def parse_agent_markdown(file_path: Path) -> AgentDefinition:
         AgentDefinition con toda la configuración
     """
     content = file_path.read_text(encoding="utf-8")
+    
+    # Detectar si usa YAML frontmatter (nuevo formato)
+    if content.startswith("---"):
+        return _parse_yaml_frontmatter(content)
+    else:
+        return _parse_legacy_format(content)
+
+
+def _parse_yaml_frontmatter(content: str) -> AgentDefinition:
+    """
+    Parsea formato YAML frontmatter.
+    
+    Formato esperado:
+    ---
+    name: agent_name
+    description: Descripción del agente
+    version: 1.0.0
+    tools: ['tool1', 'tool2']
+    ---
+    
+    # Título (usado como display_name)
+    
+    Contenido markdown que se usa como prompt...
+    
+    ## Test Cases
+    ...
+    """
+    # Extraer frontmatter YAML
+    frontmatter_match = re.match(r"^---\n(.+?)\n---\n(.*)$", content, re.DOTALL)
+    
+    if not frontmatter_match:
+        raise ValueError("Formato YAML frontmatter inválido")
+    
+    yaml_content = frontmatter_match.group(1)
+    markdown_content = frontmatter_match.group(2)
+    
+    # Parsear YAML
+    try:
+        metadata = yaml.safe_load(yaml_content)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Error parseando YAML frontmatter: {e}")
+    
+    name = metadata.get("name", "unknown")
+    description = metadata.get("description", "")
+    version = metadata.get("version", "1.0.0")
+    
+    # Tools puede ser lista YAML o string
+    tools_raw = metadata.get("tools", [])
+    if isinstance(tools_raw, str):
+        # Si es string como "['tool1', 'tool2']", parsearlo
+        tools = [t.strip().strip("'\"") for t in tools_raw.strip("[]").split(",")]
+    else:
+        tools = tools_raw if tools_raw else []
+    
+    # Extraer display_name del primer heading H1
+    title_match = re.search(r"^# (.+)$", markdown_content, re.MULTILINE)
+    display_name = title_match.group(1).strip() if title_match else name
+    
+    # El prompt es todo el markdown ANTES de ## Test Cases
+    prompt_match = re.search(r"^(.*?)(?=\n## Test Cases|$)", markdown_content, re.DOTALL)
+    prompt = prompt_match.group(1).strip() if prompt_match else markdown_content.strip()
+    
+    # Extraer test cases
+    test_cases = _parse_test_cases(content)
+    
+    return AgentDefinition(
+        name=name,
+        display_name=display_name,
+        description=description,
+        prompt=prompt,
+        tools=tools,
+        test_cases=test_cases
+    )
+
+
+def _parse_legacy_format(content: str) -> AgentDefinition:
+    """
+    Parsea formato legacy con ## Metadata.
+    Mantiene compatibilidad hacia atrás.
+    """
     
     # Extraer metadata
     name = _extract_field(content, r"\*\*name\*\*:\s*(\w+)")
