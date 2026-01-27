@@ -528,7 +528,8 @@ async def validate_agent(
     agent_file: Path,
     compare_baseline: bool = True,
     verbose: bool = True,
-    model: str = DEFAULT_MODEL
+    model: str = DEFAULT_MODEL,
+    enable_llm_judge: bool = True
 ) -> ValidationReport:
     """
     Valida un agente ejecutando todos sus test cases.
@@ -574,13 +575,13 @@ async def validate_agent(
             if verbose:
                 print(f"\n📋 Test {i}/{len(agent_def.test_cases)}: {test.name}")
                 print(f"   Prompt: {test.prompt[:50]}...")
-            
+
             # Ejecutar con agente
             response, latency, created_files = await run_test_with_agent(
                 client, test.prompt, agent_config
             )
             all_created_files.extend(created_files)
-            
+
             # Ejecutar baseline si se solicita
             if compare_baseline:
                 baseline_response, baseline_latency, baseline_files = await run_test_with_agent(
@@ -588,20 +589,20 @@ async def validate_agent(
                 )
                 baseline_results[test.name] = (baseline_response, baseline_latency)
                 all_created_files.extend(baseline_files)
-            
+
             # Evaluar con keywords
             contains_passed, contains_failed, not_contains_passed, not_contains_failed = evaluate_response(
                 response, test.expected_contains, test.expected_not_contains
             )
-            
+
             keyword_passed = len(contains_failed) == 0 and len(not_contains_failed) == 0
-            
-            # Evaluar con LLM-as-judge si hay expected_behavior
+
+            # Evaluar con LLM-as-judge si está activado y hay expected_behavior
             llm_score = 0.0
             llm_passed = False
             llm_reasoning = ""
-            
-            if test.expected_behavior:
+
+            if enable_llm_judge and test.expected_behavior:
                 if verbose:
                     print(f"   🤖 Evaluando con LLM-as-judge...")
                 llm_score, llm_passed, llm_reasoning = await evaluate_with_llm(
@@ -610,10 +611,10 @@ async def validate_agent(
                 if verbose:
                     llm_status = "✅" if llm_passed else "❌"
                     print(f"   {llm_status} LLM Score: {llm_score:.0f}/100 - {llm_reasoning[:60]}...")
-            
+
             # El test pasa si cumple keywords Y (no hay LLM o LLM pasa)
-            passed = keyword_passed and (not test.expected_behavior or llm_passed)
-            
+            passed = keyword_passed and (not (enable_llm_judge and test.expected_behavior) or llm_passed)
+
             result = TestResult(
                 test_name=test.name,
                 passed=passed,
@@ -628,7 +629,7 @@ async def validate_agent(
                 llm_reasoning=llm_reasoning
             )
             results.append(result)
-            
+
             if verbose:
                 status = "✅ PASSED" if passed else "❌ FAILED"
                 print(f"   {status} (latencia: {latency:.0f}ms)")
@@ -1215,7 +1216,7 @@ Ejemplos:
         print("📂 Sin reporte anterior - primera ejecución")
     
     # Validar agente
-    report = await validate_agent(agent_file, compare_baseline=True, verbose=True, model=model)
+    report = await validate_agent(agent_file, compare_baseline=True, verbose=True, model=model, enable_llm_judge=enable_llm_judge)
     
     # Comparar con ejecución anterior
     comparison = compare_reports(report, previous_report)
