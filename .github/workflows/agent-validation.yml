@@ -21,10 +21,15 @@ on:
         description: 'Score mínimo para pasar (0-100)'
         required: false
         default: '70'
+      model:
+        description: 'Modelo LLM a usar (ej: gpt-4o, gpt-4o-mini, claude-sonnet-4)'
+        required: false
+        default: 'gpt-4o'
 
 env:
   QUALITY_THRESHOLD: ${{ github.event.inputs.threshold || '70' }}
   ENABLE_LLM_JUDGE: 'true'
+  MODEL: ${{ github.event.inputs.model || 'gpt-4o' }}
 
 jobs:
   validate-agents:
@@ -181,6 +186,7 @@ jobs:
               echo "🔧 Running validator with:"
               echo "   --threshold: ${{ env.QUALITY_THRESHOLD }}"
               echo "   --llm-judge: ${{ env.ENABLE_LLM_JUDGE }}"
+              echo "   --model: ${{ env.MODEL }}"
               echo "   --output: $RESULTS_DIR/${agent%.md}.json"
               echo ""
               echo ">>> Validator output start <<<"
@@ -189,6 +195,7 @@ jobs:
               python -u agent_validator.py "$AGENT_PATH" \
                 --threshold ${{ env.QUALITY_THRESHOLD }} \
                 --llm-judge ${{ env.ENABLE_LLM_JUDGE }} \
+                --model ${{ env.MODEL }} \
                 --output "$RESULTS_DIR/${agent%.md}.json" \
                 --verbose \
                 2>&1 | tee "$RESULTS_DIR/${agent%.md}.log" || true

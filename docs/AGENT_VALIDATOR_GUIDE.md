@@ -67,16 +67,32 @@ flowchart LR
 
 Un agente se define en un archivo Markdown con las siguientes secciones:
 
-### 2.1 Metadata
+### 2.1 Metadata (YAML Frontmatter)
 
-```markdown
-# Nombre del Agente
+El agente debe comenzar con un bloque YAML frontmatter que define su configuración:
 
-## Metadata
-- **name**: nombre_tecnico
-- **display_name**: Nombre para Mostrar
-- **description**: Descripción del propósito del agente
+```yaml
+---
+name: nombre_tecnico
+description: Descripción del propósito del agente
+version: 1.0.0
+tools:
+  - bash
+  - create
+  - edit
+---
 ```
+
+**Campos del frontmatter:**
+
+| Campo | Requerido | Descripción |
+|-------|-----------|-------------|
+| `name` | ✅ | Identificador técnico del agente |
+| `description` | ✅ | Descripción breve del propósito |
+| `version` | ❌ | Versión semántica (ej: 1.0.0) |
+| `tools` | ❌ | Lista de herramientas disponibles |
+
+> **Nota**: El validador también soporta el formato legacy con secciones `## Metadata` y `## Tools`, pero se recomienda migrar al formato YAML frontmatter.
 
 ### 2.2 Prompt
 
@@ -95,16 +111,21 @@ Eres un experto en [tema]. Tu rol es:
 - SIEMPRE valida B
 ```
 
-### 2.3 Tools
+### 2.3 Prompt
 
-Herramientas disponibles para el agente:
+El prompt define el comportamiento del agente (después del frontmatter):
 
 ```markdown
-## Tools
-- bash
-- create
-- view
-- edit
+# Nombre del Agente
+
+Eres un experto en [tema]. Tu rol es:
+
+1. **Hacer X** siguiendo mejores prácticas
+2. **Evitar Y** por razones de seguridad
+
+### Restricciones
+- NO hagas A
+- SIEMPRE valida B
 ```
 
 ### 2.4 Test Cases
@@ -578,10 +599,36 @@ agents/
 
 ## 8. Uso Práctico
 
-### Ejecutar Validación
+### Argumentos CLI
 
 ```bash
+python agent_validator.py <agent_file> [opciones]
+```
+
+| Argumento | Descripción | Default |
+|-----------|-------------|----------|
+| `agent_file` | Ruta al archivo del agente (.md) | Requerido |
+| `--model` | Modelo LLM a usar | gpt-4o |
+| `--output`, `-o` | Archivo de salida para el reporte | agents/<name>.report.md |
+| `--threshold` | Umbral mínimo de score | 70 |
+| `--llm-judge` | Habilitar evaluación LLM | true |
+| `--verbose`, `-v` | Mostrar información detallada | false |
+
+### Ejemplos
+
+```bash
+# Validación básica (usa gpt-4o por defecto)
 python agent_validator.py agents/mi_agente.md
+
+# Especificar modelo
+python agent_validator.py agents/mi_agente.md --model gpt-4o-mini
+python agent_validator.py agents/mi_agente.md --model claude-sonnet-4-20250514
+
+# Umbral personalizado
+python agent_validator.py agents/mi_agente.md --threshold 80
+
+# Deshabilitar LLM-as-judge
+python agent_validator.py agents/mi_agente.md --llm-judge false
 ```
 
 ### Salida en Consola
