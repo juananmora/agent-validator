@@ -1026,7 +1026,7 @@ Genera un análisis en formato Markdown con las siguientes secciones:
 Sé específico y técnico. Responde SOLO con el Markdown, sin explicaciones adicionales.
 """
 
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session({"model": model})
     
     done = asyncio.Event()
     analysis_content = ""
@@ -1271,7 +1271,16 @@ Ejemplos:
     await client.start()
     
     try:
-        markdown_report = await generate_markdown_report(report, agent_def, client, comparison)
+        markdown_report = await generate_markdown_report(report, agent_def, client, comparison, model=model)
+    except Exception as e:
+        print(f"⚠️  No se pudo generar el reporte Markdown con Copilot: {e}")
+        markdown_report = (
+            f"# Reporte de validación: {agent_def.display_name}\n\n"
+            f"⚠️ La generación del análisis con Copilot falló: `{e}`\n\n"
+            f"- Score: {report.score}/100\n"
+            f"- Tests pasados: {report.passed_tests}/{report.total_tests}\n"
+            f"- Latencia promedio: {report.avg_latency_ms:.0f}ms\n"
+        )
     finally:
         await client.stop()
     
