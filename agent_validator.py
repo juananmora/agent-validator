@@ -322,6 +322,7 @@ async def run_test_with_agent(
     
     response_parts: list[str] = []
     created_files: list[str] = []
+    seen_tool_names: set[str] = set()
     done = asyncio.Event()
     
     def on_event(event):
@@ -335,15 +336,20 @@ async def run_test_with_agent(
         elif event_type == "tool.execution_start":
             tool_name = event.data.tool_name or ""
             args = event.data.arguments or {}
+            seen_tool_names.add(tool_name)
             
             # Capturar código de herramientas create/edit y rastrear archivos
-            if tool_name == "create":
-                if "file_text" in args:
-                    response_parts.append(f"[CODE:{tool_name}]\n{args.get('file_text', '')}")
-                if "path" in args:
-                    created_files.append(args["path"])
-            elif tool_name == "edit" and "file_text" in args:
-                response_parts.append(f"[CODE:{tool_name}]\n{args.get('file_text', '')}")
+            if tool_name in {"create", "create_file", "write", "write_file"}:
+                file_text = args.get("file_text") or args.get("content") or args.get("text")
+                if file_text:
+                    response_parts.append(f"[CODE:{tool_name}]\n{file_text}")
+                path = args.get("path") or args.get("file_path")
+                if path:
+                    created_files.append(path)
+            elif tool_name in {"edit", "str_replace", "str_replace_editor"}:
+                file_text = args.get("file_text") or args.get("new_str") or args.get("content")
+                if file_text:
+                    response_parts.append(f"[CODE:{tool_name}]\n{file_text}")
             elif tool_name == "bash" and "command" in args:
                 response_parts.append(f"[BASH]\n{args.get('command', '')}")
         
@@ -352,7 +358,11 @@ async def run_test_with_agent(
             if event.data.result and event.data.result.content:
                 response_parts.append(f"[RESULT]\n{event.data.result.content}")
         
-        elif event_type in {"session.idle", "session.error"}:
+        elif event_type == "session.error":
+            err = getattr(event.data, "error", None) or getattr(event.data, "message", "")
+            response_parts.append(f"[SESSION_ERROR]\n{err}")
+            done.set()
+        elif event_type == "session.idle":
             done.set()
     
     session.on(on_event)
@@ -368,7 +378,10 @@ async def run_test_with_agent(
         await session.send({"prompt": full_prompt})
         await asyncio.wait_for(done.wait(), timeout=timeout)
     except asyncio.TimeoutError:
-        response_parts.append("[TIMEOUT]")
+        response_parts.append(
+            f"[TIMEOUT] Sesión no terminó en {timeout:.0f}s. "
+            f"Tools observadas: {sorted(seen_tool_names) or 'ninguna'}"
+        )
     finally:
         latency_ms = (time.time() - start_time) * 1000
         await session.destroy()
@@ -597,12 +610,17 @@ async def validate_agent(
 
             keyword_passed = len(contains_failed) == 0 and len(not_contains_failed) == 0
 
+            # Detectar timeout/errores de sesión para evitar penalizar al juez LLM
+            session_timeout = "[TIMEOUT]" in response
+            session_error = "[SESSION_ERROR]" in response
+            session_failed = session_timeout or session_error
+
             # Evaluar con LLM-as-judge si está activado y hay expected_behavior
             llm_score = 0.0
             llm_passed = False
             llm_reasoning = ""
 
-            if enable_llm_judge and test.expected_behavior:
+            if enable_llm_judge and test.expected_behavior and not session_failed:
                 if verbose:
                     print(f"   🤖 Evaluando con LLM-as-judge...")
                 llm_score, llm_passed, llm_reasoning = await evaluate_with_llm(
@@ -611,9 +629,22 @@ async def validate_agent(
                 if verbose:
                     llm_status = "✅" if llm_passed else "❌"
                     print(f"   {llm_status} LLM Score: {llm_score:.0f}/100 - {llm_reasoning[:60]}...")
+            elif session_failed and verbose:
+                reason = "TIMEOUT" if session_timeout else "SESSION_ERROR"
+                print(f"   ⏱️  {reason}: se omite evaluación LLM")
 
-            # El test pasa si cumple keywords Y (no hay LLM o LLM pasa)
-            passed = keyword_passed and (not (enable_llm_judge and test.expected_behavior) or llm_passed)
+            # El test pasa si cumple keywords Y (no hay LLM o LLM pasa) Y no hubo timeout/error
+            passed = (
+                keyword_passed
+                and not session_failed
+                and (not (enable_llm_judge and test.expected_behavior) or llm_passed)
+            )
+
+            error_msg = None
+            if session_timeout:
+                error_msg = "Sesión no terminó dentro del timeout (sin session.idle)"
+            elif session_error:
+                error_msg = "La sesión emitió session.error"
 
             result = TestResult(
                 test_name=test.name,
@@ -626,7 +657,8 @@ async def validate_agent(
                 not_contains_failed=not_contains_failed,
                 llm_score=llm_score,
                 llm_passed=llm_passed,
-                llm_reasoning=llm_reasoning
+                llm_reasoning=llm_reasoning,
+                error=error_msg,
             )
             results.append(result)
 
