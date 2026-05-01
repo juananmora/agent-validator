@@ -22,14 +22,14 @@ on:
         required: false
         default: '70'
       model:
-        description: 'Modelo LLM a usar (ej: gpt-4o, gpt-4o-mini, claude-sonnet-4)'
+        description: 'Modelo LLM a usar (ej: gpt-5.4, claude-sonnet-4.5, gpt-4.1)'
         required: false
-        default: 'gpt-4o'
+        default: 'gpt-5.4'
 
 env:
   QUALITY_THRESHOLD: ${{ github.event.inputs.threshold || '70' }}
   ENABLE_LLM_JUDGE: 'true'
-  MODEL: ${{ github.event.inputs.model || 'gpt-4o' }}
+  MODEL: ${{ github.event.inputs.model || 'gpt-5.4' }}
 
 jobs:
   validate-agents:
