@@ -23,7 +23,7 @@ from typing import Any
 from copilot import CopilotClient
 
 # Modelo por defecto para las sesiones de Copilot
-DEFAULT_MODEL = "GPT-4o"
+DEFAULT_MODEL = "GPT-5.4"
 
 
 @dataclass
