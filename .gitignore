@@ -73,6 +73,7 @@ Thumbs.db
 # Project specific
 agents/history/
 validation_reports/
+*.partial.json
 *.log
 
 # Jupyter Notebook

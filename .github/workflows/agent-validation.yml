@@ -25,11 +25,16 @@ on:
         description: 'Modelo LLM a usar (ej: gpt-5.4, claude-sonnet-4.5, gpt-4.1)'
         required: false
         default: 'gpt-5.4'
+      timeout:
+        description: 'Timeout en segundos por test (default: 60)'
+        required: false
+        default: '60'
 
 env:
   QUALITY_THRESHOLD: ${{ github.event.inputs.threshold || '70' }}
   ENABLE_LLM_JUDGE: 'true'
   MODEL: ${{ github.event.inputs.model || 'gpt-5.4' }}
+  TIMEOUT: ${{ github.event.inputs.timeout || '60' }}
 
 jobs:
   validate-agents:
@@ -187,6 +192,7 @@ jobs:
               echo "   --threshold: ${{ env.QUALITY_THRESHOLD }}"
               echo "   --llm-judge: ${{ env.ENABLE_LLM_JUDGE }}"
               echo "   --model: ${{ env.MODEL }}"
+              echo "   --timeout: ${{ env.TIMEOUT }}"
               echo "   --output: $RESULTS_DIR/${agent%.md}.json"
               echo ""
               echo ">>> Validator output start <<<"
@@ -196,6 +202,7 @@ jobs:
                 --threshold ${{ env.QUALITY_THRESHOLD }} \
                 --llm-judge ${{ env.ENABLE_LLM_JUDGE }} \
                 --model ${{ env.MODEL }} \
+                --timeout ${{ env.TIMEOUT }} \
                 --output "$RESULTS_DIR/${agent%.md}.json" \
                 --verbose \
                 2>&1 | tee "$RESULTS_DIR/${agent%.md}.log" || true

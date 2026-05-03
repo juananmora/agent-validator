@@ -18,12 +18,39 @@ import yaml
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from copilot import CopilotClient
 
 # Modelo por defecto para las sesiones de Copilot
 DEFAULT_MODEL = "gpt-5.4"
+AUTH_ERROR_MARKERS = (
+    "Session was not created with authentication info or custom provider",
+    "No authentication information found",
+)
+WAIT_PROGRESS_INTERVAL_SECONDS = 5.0
+
+
+class CopilotRuntimeConfigurationError(RuntimeError):
+    """El runtime de Copilot no tiene autenticacion ni provider configurado."""
+
+
+async def show_wait_progress(
+    done: asyncio.Event,
+    label: str,
+    start_time: float,
+    get_status: Callable[[], str] | None = None,
+    interval: float = WAIT_PROGRESS_INTERVAL_SECONDS,
+) -> None:
+    """Imprime un heartbeat periodico mientras una sesion sigue en curso."""
+    while not done.is_set():
+        try:
+            await asyncio.wait_for(done.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start_time
+            status = get_status() if get_status else ""
+            suffix = f" | {status}" if status else ""
+            print(f"   ... {label} ({elapsed:.0f}s){suffix}")
 
 
 @dataclass
@@ -293,8 +320,9 @@ async def run_test_with_agent(
     client: CopilotClient,
     prompt: str,
     agent_config: dict | None = None,
-    timeout: float = 180.0,
-    model: str = DEFAULT_MODEL
+    timeout: float = 60.0,
+    model: str = DEFAULT_MODEL,
+    progress_label: str | None = None,
 ) -> tuple[str, float, list[str]]:
     """
     Ejecuta un test con o sin agente personalizado.
@@ -368,12 +396,23 @@ async def run_test_with_agent(
     session.on(on_event)
     
     start_time = time.time()
+    progress_task: asyncio.Task | None = None
+
+    def get_progress_status() -> str:
+        tool_info = f"tools: {', '.join(sorted(seen_tool_names))}" if seen_tool_names else "tools: ninguna"
+        parts_info = f"fragmentos: {len(response_parts)}"
+        return f"{tool_info} | {parts_info}"
     
     try:
         # Si hay agente, prefijamos con @agent_name
         full_prompt = prompt
         if agent_config:
             full_prompt = f"@{agent_config['name']} {prompt}"
+
+        if progress_label:
+            progress_task = asyncio.create_task(
+                show_wait_progress(done, progress_label, start_time, get_progress_status)
+            )
         
         await session.send({"prompt": full_prompt})
         await asyncio.wait_for(done.wait(), timeout=timeout)
@@ -383,6 +422,12 @@ async def run_test_with_agent(
             f"Tools observadas: {sorted(seen_tool_names) or 'ninguna'}"
         )
     finally:
+        if progress_task:
+            progress_task.cancel()
+            try:
+                await progress_task
+            except asyncio.CancelledError:
+                pass
         latency_ms = (time.time() - start_time) * 1000
         await session.destroy()
     
@@ -505,6 +550,10 @@ Responde SOLO con el JSON, sin texto adicional."""
             done.set()
     
     session.on(on_event)
+    start_time = time.time()
+    progress_task = asyncio.create_task(
+        show_wait_progress(done, f"esperando evaluación LLM para {test_name}", start_time)
+    )
     
     try:
         await session.send({"prompt": judge_prompt})
@@ -512,6 +561,11 @@ Responde SOLO con el JSON, sin texto adicional."""
     except asyncio.TimeoutError:
         return 50.0, False, "Timeout en evaluación LLM"
     finally:
+        progress_task.cancel()
+        try:
+            await progress_task
+        except asyncio.CancelledError:
+            pass
         await session.destroy()
     
     # Parsear respuesta JSON
@@ -537,12 +591,52 @@ Responde SOLO con el JSON, sin texto adicional."""
         return 50.0, False, f"Error parseando respuesta LLM: {str(e)}"
 
 
+def _extract_runtime_configuration_error(response: str) -> str | None:
+    """Detecta errores de autenticacion/provider en la respuesta de la sesion."""
+    for marker in AUTH_ERROR_MARKERS:
+        if marker.lower() in response.lower():
+            return marker
+    return None
+
+
+async def ensure_copilot_runtime_ready(
+    client: CopilotClient,
+    model: str = DEFAULT_MODEL,
+    verbose: bool = True,
+) -> None:
+    """Verifica que el runtime pueda responder antes de ejecutar toda la bateria."""
+    if verbose:
+        print("🔐 Verificando autenticación/configuración del runtime...")
+
+    response, _, _ = await run_test_with_agent(
+        client,
+        "Responde únicamente con OK.",
+        timeout=30.0,
+        model=model,
+        progress_label="verificando runtime de Copilot",
+    )
+
+    runtime_error = _extract_runtime_configuration_error(response)
+    if runtime_error:
+        raise CopilotRuntimeConfigurationError(
+            "Copilot CLI no tiene autenticación ni provider configurado. "
+            "Configura una de estas opciones antes de ejecutar el validador:\n"
+            "- Ejecuta `copilot login`\n"
+            "- Exporta `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` o `GITHUB_TOKEN`\n"
+            "- Crea la sesión con `provider` (BYOK) según el ejemplo del README\n"
+            f"Detalle del runtime: {runtime_error}"
+        )
+
+
 async def validate_agent(
     agent_file: Path,
     compare_baseline: bool = True,
     verbose: bool = True,
     model: str = DEFAULT_MODEL,
-    enable_llm_judge: bool = True
+    enable_llm_judge: bool = True,
+    partial_report_file: Path | None = None,
+    threshold: float = 70.0,
+    timeout: float = 60.0,
 ) -> ValidationReport:
     """
     Valida un agente ejecutando todos sus test cases.
@@ -584,6 +678,8 @@ async def validate_agent(
     }
     
     try:
+        await ensure_copilot_runtime_ready(client, model=model, verbose=verbose)
+
         for i, test in enumerate(agent_def.test_cases, 1):
             if verbose:
                 print(f"\n📋 Test {i}/{len(agent_def.test_cases)}: {test.name}")
@@ -591,14 +687,24 @@ async def validate_agent(
 
             # Ejecutar con agente
             response, latency, created_files = await run_test_with_agent(
-                client, test.prompt, agent_config
+                client,
+                test.prompt,
+                agent_config,
+                timeout=timeout,
+                model=model,
+                progress_label=f"esperando respuesta del agente para {test.name}",
             )
             all_created_files.extend(created_files)
 
             # Ejecutar baseline si se solicita
             if compare_baseline:
                 baseline_response, baseline_latency, baseline_files = await run_test_with_agent(
-                    client, test.prompt, None
+                    client,
+                    test.prompt,
+                    None,
+                    timeout=timeout,
+                    model=model,
+                    progress_label=f"ejecutando baseline para {test.name}",
                 )
                 baseline_results[test.name] = (baseline_response, baseline_latency)
                 all_created_files.extend(baseline_files)
@@ -669,69 +775,33 @@ async def validate_agent(
                     print(f"   ⚠️  Falta: {contains_failed}")
                 if not_contains_failed:
                     print(f"   ⚠️  Prohibido encontrado: {not_contains_failed}")
+
+            if partial_report_file:
+                partial_report = build_validation_report(
+                    agent_def.name,
+                    results,
+                    all_created_files,
+                    baseline_results,
+                    compare_baseline=compare_baseline,
+                )
+                save_partial_report(
+                    partial_report_file,
+                    partial_report,
+                    threshold,
+                    completed_tests=len(results),
+                    expected_total_tests=len(agent_def.test_cases),
+                    verbose=verbose,
+                )
     
     finally:
         await client.stop()
     
-    # Calcular estadísticas
-    passed_count = sum(1 for r in results if r.passed)
-    avg_latency = sum(r.latency_ms for r in results) / len(results) if results else 0
-    
-    # Calcular score (0-100)
-    # Nueva fórmula con LLM:
-    # - 40% tests pasados (keywords)
-    # - 25% evaluación LLM (si hay expected_behavior)
-    # - 15% latencia
-    # - 20% seguridad
-    
-    success_rate = (passed_count / len(results)) if results else 0
-    
-    # Score LLM promedio (solo tests con expected_behavior)
-    llm_tests = [r for r in results if r.llm_score > 0]
-    llm_avg_score = sum(r.llm_score for r in llm_tests) / len(llm_tests) / 100 if llm_tests else 1.0
-    
-    # Penalización por violaciones de seguridad (expected_not_contains fallidos)
-    security_violations = sum(len(r.not_contains_failed) for r in results)
-    security_score = max(0, 1 - (security_violations * 0.25))  # -25% por cada violación
-    
-    # Latencia score (baseline como referencia)
-    latency_score = 1.0
-    if compare_baseline and baseline_results:
-        baseline_avg = sum(b[1] for b in baseline_results.values()) / len(baseline_results)
-        if baseline_avg > 0:
-            latency_ratio = avg_latency / baseline_avg
-            # Si es 1x = 100%, 2x = 50%, 3x = 33%, etc.
-            latency_score = min(1.0, 1.0 / latency_ratio) if latency_ratio > 0 else 1.0
-    
-    # Calcular score final
-    # Nota: La latencia tiene peso reducido (10%) porque las tareas LLM complejas
-    # naturalmente requieren más tiempo y no deberían penalizarse excesivamente
-    if llm_tests:
-        # Con evaluación LLM
-        score = round((success_rate * 40) + (llm_avg_score * 30) + (latency_score * 10) + (security_score * 20), 1)
-    else:
-        # Sin evaluación LLM (mantener fórmula original)
-        score = round((success_rate * 60) + (latency_score * 20) + (security_score * 20), 1)
-    
-    # Comparación con baseline
-    baseline_comparison = None
-    if compare_baseline and baseline_results:
-        baseline_comparison = {
-            "latency_diff_avg_ms": avg_latency - (sum(b[1] for b in baseline_results.values()) / len(baseline_results)),
-            "baseline_results": {name: {"response_preview": resp[:100], "latency_ms": lat} 
-                                for name, (resp, lat) in baseline_results.items()}
-        }
-    
-    report = ValidationReport(
-        agent_name=agent_def.name,
-        total_tests=len(results),
-        passed_tests=passed_count,
-        failed_tests=len(results) - passed_count,
-        avg_latency_ms=avg_latency,
-        score=score,
-        results=results,
-        created_files=list(set(all_created_files)),  # Eliminar duplicados
-        baseline_comparison=baseline_comparison
+    report = build_validation_report(
+        agent_def.name,
+        results,
+        all_created_files,
+        baseline_results,
+        compare_baseline=compare_baseline,
     )
     
     if verbose:
@@ -739,22 +809,22 @@ async def validate_agent(
         print("📊 RESUMEN DE VALIDACIÓN")
         print("=" * 60)
         print(f"   Agente: {agent_def.display_name}")
-        print(f"   Tests pasados: {passed_count}/{len(results)}")
-        print(f"   Tests fallidos: {len(results) - passed_count}/{len(results)}")
-        print(f"   Latencia promedio: {avg_latency:.0f}ms")
-        print(f"   Score: {score}/100")
+        print(f"   Tests pasados: {report.passed_tests}/{len(results)}")
+        print(f"   Tests fallidos: {report.failed_tests}/{len(results)}")
+        print(f"   Latencia promedio: {report.avg_latency_ms:.0f}ms")
+        print(f"   Score: {report.score}/100")
         
-        if baseline_comparison:
-            diff = baseline_comparison["latency_diff_avg_ms"]
+        if report.baseline_comparison:
+            diff = report.baseline_comparison["latency_diff_avg_ms"]
             diff_str = f"+{diff:.0f}ms" if diff > 0 else f"{diff:.0f}ms"
             print(f"   Diferencia vs baseline: {diff_str}")
         
-        if score >= 80:
-            print(f"\n   ✅ AGENTE VALIDADO (Score: {score})")
-        elif score >= 50:
-            print(f"\n   ⚠️  AGENTE CON PROBLEMAS (Score: {score})")
+        if report.score >= 80:
+            print(f"\n   ✅ AGENTE VALIDADO (Score: {report.score})")
+        elif report.score >= 50:
+            print(f"\n   ⚠️  AGENTE CON PROBLEMAS (Score: {report.score})")
         else:
-            print(f"\n   ❌ AGENTE FALLIDO (Score: {score})")
+            print(f"\n   ❌ AGENTE FALLIDO (Score: {report.score})")
         
         print("=" * 60)
     
@@ -785,6 +855,148 @@ def cleanup_generated_files(files: list[str], verbose: bool = True) -> int:
             if verbose:
                 print(f"   ⚠️  Error eliminando {file_path}: {e}")
     return deleted
+
+
+def build_validation_report(
+    agent_name: str,
+    results: list[TestResult],
+    created_files: list[str],
+    baseline_results: dict[str, tuple[str, float]],
+    compare_baseline: bool = True,
+    timestamp: str | None = None,
+) -> ValidationReport:
+    """Construye un ValidationReport a partir del estado actual de ejecución."""
+    passed_count = sum(1 for r in results if r.passed)
+    avg_latency = sum(r.latency_ms for r in results) / len(results) if results else 0
+
+    success_rate = (passed_count / len(results)) if results else 0
+    llm_tests = [r for r in results if r.llm_score > 0]
+    llm_avg_score = sum(r.llm_score for r in llm_tests) / len(llm_tests) / 100 if llm_tests else 1.0
+
+    security_violations = sum(len(r.not_contains_failed) for r in results)
+    security_score = max(0, 1 - (security_violations * 0.25))
+
+    latency_score = 1.0
+    if compare_baseline and baseline_results:
+        baseline_avg = sum(b[1] for b in baseline_results.values()) / len(baseline_results)
+        if baseline_avg > 0:
+            latency_ratio = avg_latency / baseline_avg
+            latency_score = min(1.0, 1.0 / latency_ratio) if latency_ratio > 0 else 1.0
+
+    if llm_tests:
+        score = round(
+            (success_rate * 40) + (llm_avg_score * 30) + (latency_score * 10) + (security_score * 20),
+            1,
+        )
+    else:
+        score = round((success_rate * 60) + (latency_score * 20) + (security_score * 20), 1)
+
+    baseline_comparison = None
+    if compare_baseline and baseline_results:
+        baseline_comparison = {
+            "latency_diff_avg_ms": avg_latency - (sum(b[1] for b in baseline_results.values()) / len(baseline_results)),
+            "baseline_results": {
+                name: {"response_preview": resp[:100], "latency_ms": lat}
+                for name, (resp, lat) in baseline_results.items()
+            },
+        }
+
+    return ValidationReport(
+        agent_name=agent_name,
+        total_tests=len(results),
+        passed_tests=passed_count,
+        failed_tests=len(results) - passed_count,
+        avg_latency_ms=avg_latency,
+        score=score,
+        results=results,
+        created_files=list(set(created_files)),
+        baseline_comparison=baseline_comparison,
+        timestamp=timestamp or datetime.now().isoformat(),
+    )
+
+
+def build_report_dict(
+    report: ValidationReport,
+    threshold: float,
+    *,
+    is_partial: bool = False,
+    completed_tests: int | None = None,
+    expected_total_tests: int | None = None,
+) -> dict[str, Any]:
+    """Serializa un ValidationReport a dict para JSON final o parcial."""
+    report_dict = {
+        "agent_name": report.agent_name,
+        "total_tests": report.total_tests,
+        "passed_tests": report.passed_tests,
+        "failed_tests": report.failed_tests,
+        "avg_latency_ms": report.avg_latency_ms,
+        "score": report.score,
+        "success_rate": (report.passed_tests / report.total_tests * 100) if report.total_tests > 0 else 0,
+        "timestamp": report.timestamp,
+        "results": [
+            {
+                "test_name": r.test_name,
+                "passed": r.passed,
+                "latency_ms": r.latency_ms,
+                "response_preview": r.response[:200] if r.response else "",
+                "contains_failed": r.contains_failed,
+                "not_contains_failed": r.not_contains_failed,
+                "llm_score": r.llm_score,
+                "llm_passed": r.llm_passed,
+                "llm_reasoning": r.llm_reasoning,
+            }
+            for r in report.results
+        ],
+        "created_files": report.created_files,
+        "baseline_comparison": report.baseline_comparison,
+        "threshold": threshold,
+        "quality_gate_passed": report.score >= threshold,
+    }
+
+    if is_partial:
+        report_dict["is_partial"] = True
+        report_dict["completed_tests"] = completed_tests if completed_tests is not None else report.total_tests
+        report_dict["expected_total_tests"] = (
+            expected_total_tests if expected_total_tests is not None else report.total_tests
+        )
+
+    return report_dict
+
+
+def save_partial_report(
+    partial_report_file: Path,
+    report: ValidationReport,
+    threshold: float,
+    completed_tests: int,
+    expected_total_tests: int,
+    verbose: bool = True,
+) -> None:
+    """Guarda un snapshot parcial del progreso actual de validación."""
+    partial_report_file.parent.mkdir(parents=True, exist_ok=True)
+    partial_report = build_report_dict(
+        report,
+        threshold,
+        is_partial=True,
+        completed_tests=completed_tests,
+        expected_total_tests=expected_total_tests,
+    )
+    partial_report_file.write_text(json.dumps(partial_report, indent=2, ensure_ascii=False))
+    if verbose:
+        print(f"   💾 Estado parcial guardado en: {partial_report_file}")
+
+
+def remove_partial_report(partial_report_file: Path, verbose: bool = True) -> None:
+    """Elimina el archivo parcial una vez completada la ejecución final."""
+    if partial_report_file.exists():
+        partial_report_file.unlink()
+        if verbose:
+            print(f"🧹 Reporte parcial eliminado: {partial_report_file}")
+
+
+def get_partial_report_path(final_report_file: Path) -> Path:
+    """Calcula la ruta del JSON parcial asociada al reporte final."""
+    suffix = final_report_file.suffix or ".json"
+    return final_report_file.with_name(f"{final_report_file.stem}.partial{suffix}")
 
 
 def load_previous_report(report_file: Path) -> dict | None:
@@ -1039,6 +1251,10 @@ Sé específico y técnico. Responde SOLO con el Markdown, sin explicaciones adi
             done.set()
     
     session.on(on_event)
+    start_time = time.time()
+    progress_task = asyncio.create_task(
+        show_wait_progress(done, "generando análisis Markdown", start_time)
+    )
     
     try:
         await session.send({"prompt": analysis_prompt})
@@ -1046,6 +1262,11 @@ Sé específico y técnico. Responde SOLO con el Markdown, sin explicaciones adi
     except asyncio.TimeoutError:
         analysis_content = "Error: Timeout generando análisis"
     finally:
+        progress_task.cancel()
+        try:
+            await progress_task
+        except asyncio.CancelledError:
+            pass
         await session.destroy()
     
     # Construir reporte final
@@ -1222,6 +1443,12 @@ Ejemplos:
         default=DEFAULT_MODEL,
         help=f"Modelo a usar para las sesiones (default: {DEFAULT_MODEL})"
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=60.0,
+        help="Timeout en segundos por test (default: 60)"
+    )
     
     args = parser.parse_args()
     
@@ -1231,6 +1458,7 @@ Ejemplos:
     output_file = Path(args.output) if args.output else None
     verbose = args.verbose
     model = args.model
+    timeout = args.timeout
     
     if not agent_file.exists():
         print(f"❌ Archivo no encontrado: {agent_file}")
@@ -1240,6 +1468,7 @@ Ejemplos:
     
     # Cargar reporte anterior si existe
     report_json_file = agent_file.with_suffix(".report.json")
+    partial_report_file = get_partial_report_path(output_file if output_file else report_json_file)
     previous_report = load_previous_report(report_json_file)
     
     if previous_report:
@@ -1248,7 +1477,25 @@ Ejemplos:
         print("📂 Sin reporte anterior - primera ejecución")
     
     # Validar agente
-    report = await validate_agent(agent_file, compare_baseline=True, verbose=True, model=model, enable_llm_judge=enable_llm_judge)
+    try:
+        report = await validate_agent(
+            agent_file,
+            compare_baseline=True,
+            verbose=True,
+            model=model,
+            enable_llm_judge=enable_llm_judge,
+            partial_report_file=partial_report_file,
+            threshold=threshold,
+            timeout=timeout,
+        )
+    except CopilotRuntimeConfigurationError as e:
+        print(f"❌ {e}")
+        return 2
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Ejecución interrumpida por el usuario (Ctrl+C)")
+        if partial_report_file and partial_report_file.exists():
+            print(f"💾 Reporte parcial disponible en: {partial_report_file}")
+        return 130
     
     # Comparar con ejecución anterior
     comparison = compare_reports(report, previous_report)
@@ -1290,34 +1537,7 @@ Ejemplos:
     print(f"📄 Reporte Markdown guardado en: {report_md_file}")
     
     # Preparar reporte JSON
-    report_dict = {
-        "agent_name": report.agent_name,
-        "total_tests": report.total_tests,
-        "passed_tests": report.passed_tests,
-        "failed_tests": report.failed_tests,
-        "avg_latency_ms": report.avg_latency_ms,
-        "score": report.score,
-        "success_rate": (report.passed_tests / report.total_tests * 100) if report.total_tests > 0 else 0,
-        "timestamp": report.timestamp,
-        "results": [
-            {
-                "test_name": r.test_name,
-                "passed": r.passed,
-                "latency_ms": r.latency_ms,
-                "response_preview": r.response[:200] if r.response else "",
-                "contains_failed": r.contains_failed,
-                "not_contains_failed": r.not_contains_failed,
-                "llm_score": r.llm_score,
-                "llm_passed": r.llm_passed,
-                "llm_reasoning": r.llm_reasoning
-            }
-            for r in report.results
-        ],
-        "created_files": report.created_files,
-        "baseline_comparison": report.baseline_comparison,
-        "threshold": threshold,
-        "quality_gate_passed": report.score >= threshold
-    }
+    report_dict = build_report_dict(report, threshold)
     
     # Guardar reporte JSON (usar --output si se especifica)
     if output_file:
@@ -1327,6 +1547,8 @@ Ejemplos:
     else:
         report_json_file.write_text(json.dumps(report_dict, indent=2, ensure_ascii=False))
         print(f"📄 Reporte JSON guardado en: {report_json_file}")
+
+    remove_partial_report(partial_report_file, verbose=True)
     
     # Guardar histórico con timestamp
     history_file = save_historical_report(agent_file, report_dict, comparison)
