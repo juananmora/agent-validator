@@ -353,8 +353,29 @@ async def run_test_with_agent(
     seen_tool_names: set[str] = set()
     done = asyncio.Event()
     
+    # Inactivity-based completion: if we have content and no events for N seconds, done
+    INACTIVITY_TIMEOUT = 8  # seconds of silence after content to consider done
+    inactivity_handle: asyncio.TimerHandle | None = None
+    loop = asyncio.get_event_loop()
+    
+    def _inactivity_expired():
+        """Called when no events arrived for INACTIVITY_TIMEOUT seconds."""
+        if response_parts and not done.is_set():
+            done.set()
+    
+    def _reset_inactivity_timer():
+        nonlocal inactivity_handle
+        if inactivity_handle:
+            inactivity_handle.cancel()
+        # Only arm the timer if we already have captured content
+        if response_parts:
+            inactivity_handle = loop.call_later(INACTIVITY_TIMEOUT, _inactivity_expired)
+    
     def on_event(event):
         event_type = event.type.value
+        
+        # Reset inactivity timer on every event
+        _reset_inactivity_timer()
         
         # Capturar mensajes del asistente
         if event_type == "assistant.message" and event.data.content:
@@ -390,7 +411,7 @@ async def run_test_with_agent(
             err = getattr(event.data, "error", None) or getattr(event.data, "message", "")
             response_parts.append(f"[SESSION_ERROR]\n{err}")
             done.set()
-        elif event_type == "session.idle":
+        elif event_type in ("session.idle", "assistant.turn_end"):
             done.set()
     
     session.on(on_event)
@@ -422,6 +443,8 @@ async def run_test_with_agent(
             f"Tools observadas: {sorted(seen_tool_names) or 'ninguna'}"
         )
     finally:
+        if inactivity_handle:
+            inactivity_handle.cancel()
         if progress_task:
             progress_task.cancel()
             try:
