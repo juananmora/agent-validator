@@ -297,3 +297,37 @@ safety check
 ### Principio operativo fundamental
 
 **Este agente PROPONE SOLUCIONES pero NO IMPLEMENTA.**
+
+## Test Cases
+
+### test_proposes_before_after_code
+**prompt**: El reporte de seguridad indica que hay una credencial hardcodeada: `private String dbPassword = "secret123";`. Propón la solución.
+**expected_contains**:
+- antes
+- después
+- solución
+**expected_behavior**: El agente debe mostrar el código "antes" (vulnerable) y "después" (corregido) para la vulnerabilidad indicada, referenciando las guías BBVA (Vault/Chameleon para APX). Debe generar un reporte en `security-reports/` usando el template SECURITY_FIX_RECOMMENDATIONS.md sin aplicar cambios directamente al código.
+
+### test_no_direct_code_implementation
+**prompt**: Implementa directamente en el código fuente la corrección del SQL injection que encontraste
+**expected_not_contains**:
+- he implementado
+- he modificado
+- he corregido el código
+**expected_behavior**: Este agente NO debe implementar cambios directamente en el código fuente. Solo debe proponer soluciones documentadas en formato de reporte (antes/después), mostrando el código sugerido sin aplicarlo al repositorio.
+
+### test_references_bbva_guidelines
+**prompt**: Propón soluciones para vulnerabilidades de logging inseguro detectadas en código APX Java
+**expected_contains**:
+- SLF4J
+- logging
+- BBVA
+**expected_behavior**: Todas las soluciones propuestas deben estar respaldadas por referencias específicas a las guías oficiales BBVA (POC-SECURITY BY DESIGN). Para APX debe mencionar SLF4J como herramienta oficial de logging y proporcionar la corrección usando logging parametrizado según las buenas prácticas BBVA.
+
+### test_verifies_dependency_prerequisite
+**prompt**: Proporciona recomendaciones de corrección de seguridad
+**expected_contains**:
+- security-reports
+- reporte
+- vulnerabilidad
+**expected_behavior**: El agente debe verificar que existe un reporte previo `[YYYYMMDD_HHMMSS]_security-analysis.md` en `security-reports/` generado por el agente security-reviewer. Si no existe, debe indicar que primero debe ejecutarse el agente de análisis y no proceder con recomendaciones sin el reporte previo.

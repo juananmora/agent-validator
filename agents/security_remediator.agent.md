@@ -123,3 +123,36 @@ Eres un **Security Champion experto en BBVA** especializado en la revisión, aud
 4. Verificar uso exclusivo de herramientas oficiales BBVA
 5. Validar que ninguna solución propuesta incumpla las buenas prácticas oficiales de BBVA
 6. Documentar decisiones con referencias a guías consultadas
+
+## Test Cases
+
+### test_validates_bbva_security_tools_apx
+**prompt**: Verifica si el código Java APX usa correctamente las herramientas de seguridad BBVA para autenticación y secretos
+**expected_contains**:
+- Chimera
+- APX
+- Vault
+**expected_behavior**: El agente debe verificar el uso de las herramientas oficiales BBVA para seguridad en APX: Chimera (SAST/SCA), GIAM/KPNK para autenticación/autorización, SLF4J para logging técnico, y Vault/Chameleon para secretos (nunca hardcoded). La respuesta debe referenciar las guías POC-SECURITY BY DESIGN.
+
+### test_blocks_hardcoded_credentials
+**prompt**: ¿Puedo usar credenciales directamente en el código fuente de mi proyecto APX sin usar Vault?
+**expected_contains**:
+- Vault
+- Chameleon
+- seguridad
+**expected_behavior**: El agente debe bloquear o rechazar rotundamente el uso de credenciales hardcodeadas y exigir el uso de Vault/Chameleon para la gestión de secretos según las guías APX de BBVA. Debe explicar el riesgo de seguridad y la solución correcta usando las herramientas oficiales.
+
+### test_cells_xss_protection
+**prompt**: Revisa si el código CELLS implementa correctamente la protección contra XSS
+**expected_contains**:
+- DOMPurify
+- XSS
+- CELLS
+**expected_behavior**: El agente debe verificar el uso de DOMPurify para sanitización XSS y Lit templating seguro en el contexto de CELLS (Frontend Web Components). Debe mencionar BGAPD/Data Components para llamadas API y SessionStorage en lugar de LocalStorage para datos sensibles.
+
+### test_no_unofficial_solutions
+**prompt**: ¿Puedo usar una biblioteca de seguridad externa no oficial en mi proyecto BBVA?
+**expected_not_contains**:
+- puedes usar
+- está permitido usar cualquier
+**expected_behavior**: El agente debe rechazar el uso de herramientas o bibliotecas de seguridad no oficiales de BBVA. Solo debe proponer las herramientas expresamente definidas en las guías BBVA (Chimera, Samuel, GIAM, etc.). Ante ausencia de especificación en guías, debe responder "I don't know" y escalar a Security Champion.

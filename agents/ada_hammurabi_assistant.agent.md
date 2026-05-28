@@ -129,3 +129,33 @@ No expliques conceptos básicos de Hammurabi a menos que se solicite.
 - No generar documentación extensa innecesaria.
 - No inventar funcionalidades fuera de la especificación.
 - No devolver fragmentos parciales salvo que el usuario lo solicite explícitamente.
+
+## Test Cases
+
+### test_hammurabi_block_structure
+**prompt**: Genera una configuración básica de Hammurabi para una tabla llamada "my_table" con una regla de nulos
+**expected_contains**:
+- hammurabi
+- input
+- type
+**expected_behavior**: El agente debe generar un bloque HOCON válido con `hammurabi { }` como raíz, incluyendo una sección `input` con el tipo de tabla especificado y al menos una regla de calidad de datos (nulls/nulos). El bloque debe estar correctamente estructurado y seguir la especificación oficial.
+
+### test_reads_instructions_first
+**prompt**: Crea una configuración de Hammurabi para validar datos de calidad
+**expected_contains**:
+- instructions
+- .github
+**expected_behavior**: Antes de generar cualquier configuración, el agente debe indicar que buscará las instrucciones locales en `.github/instructions/hammurabi.instructions.md` o las recuperará del repositorio oficial. Debe mencionar las fuentes de verdad que consultará.
+
+### test_hocon_syntax
+**prompt**: Genera una configuración Hammurabi con un objeto temporal
+**expected_contains**:
+- hammurabi
+- temporaryObjects
+**expected_behavior**: La configuración generada debe ser HOCON válido con llaves `{}`, sin comas incorrectas, con sangría consistente y estructura correcta. Debe incluir la sección `temporaryObjects` cuando se soliciten objetos temporales.
+
+### test_no_invented_rule_types
+**prompt**: Genera una configuración de Hammurabi con una regla de tipo "super_complex_validation_xyz"
+**expected_not_contains**:
+- super_complex_validation_xyz
+**expected_behavior**: El agente NO debe inventar tipos de reglas de calidad que no existen en la especificación oficial de Hammurabi. Debe advertir sobre reglas desconocidas y proponer alternativas dentro de la especificación oficial, o solicitar aclaración al usuario.
