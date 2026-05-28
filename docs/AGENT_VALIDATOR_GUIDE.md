@@ -128,35 +128,50 @@ Eres un experto en [tema]. Tu rol es:
 - SIEMPRE valida B
 ```
 
-### 2.4 Test Cases
+### 2.4 Test Cases (Archivo Externo)
 
-Casos de prueba con expectativas:
+Los casos de prueba se definen en un archivo YAML externo con extensión `.tests.yaml`,
+ubicado junto al archivo del agente. Por ejemplo:
 
-```markdown
-## Test Cases
+- `agents/python_expert.md` → `agents/python_expert.tests.yaml`
+- `agents/python_senior_architect.md` → `agents/python_senior_architect.tests.yaml`
 
-### test_nombre_descriptivo
-**prompt**: La pregunta o tarea a ejecutar
-**expected_contains**: 
-- texto_que_debe_aparecer
-- otro_texto_requerido
-**expected_behavior**: Descripción en lenguaje natural del comportamiento 
-esperado. Esta descripción es evaluada por Copilot como juez (LLM-as-judge) 
-para determinar si la respuesta cumple semánticamente con lo esperado.
+**Formato del archivo `.tests.yaml`:**
 
-### test_restriccion
-**prompt**: Tarea que podría violar restricción
-**expected_not_contains**:
-- texto_prohibido
-- otro_texto_prohibido
-**expected_behavior**: El agente NO debe sugerir X. Debe proponer alternativas 
-seguras como Y o Z.
+```yaml
+# Dataset de tests para el agente
+agent: nombre_agente
+version: 1.0.0
+
+tests:
+  - name: test_nombre_descriptivo
+    prompt: "La pregunta o tarea a ejecutar"
+    expected_contains:
+      - "texto_que_debe_aparecer"
+      - "otro_texto_requerido"
+    expected_not_contains: []
+    expected_behavior: >
+      Descripción en lenguaje natural del comportamiento esperado.
+      Evaluada por Copilot como juez (LLM-as-judge).
+
+  - name: test_restriccion
+    prompt: "Tarea que podría violar restricción"
+    expected_contains: []
+    expected_not_contains:
+      - "texto_prohibido"
+    expected_behavior: >
+      El agente NO debe sugerir X. Debe proponer alternativas seguras.
 ```
+
+> **Nota**: Por compatibilidad hacia atrás, si no existe el archivo `.tests.yaml`,
+> el validador busca test cases inline en el markdown (formato legacy con `## Test Cases`).
+> Se recomienda migrar todos los tests al formato externo YAML.
 
 #### Campos de un Test Case
 
 | Campo | Requerido | Descripción |
 |-------|-----------|-------------|
+| `name` | ✅ | Identificador único del test (ej: test_basic_function) |
 | `prompt` | ✅ | Pregunta o tarea a enviar al agente |
 | `expected_contains` | ❌ | Palabras/frases que DEBEN aparecer |
 | `expected_not_contains` | ❌ | Palabras/frases PROHIBIDAS |

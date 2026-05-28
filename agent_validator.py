@@ -124,10 +124,55 @@ class HistoricalComparison:
     is_regression: bool  # True si el score bajó significativamente
 
 
+def _load_tests_from_yaml_file(tests_file: Path) -> list[TestCase]:
+    """
+    Carga los test cases desde un archivo YAML externo (.tests.yaml).
+    
+    El archivo debe tener el formato:
+        agent: nombre_agente
+        version: x.y.z
+        tests:
+          - name: test_name
+            prompt: "..."
+            expected_contains: [...]
+            expected_not_contains: [...]
+            expected_behavior: "..."
+    
+    Args:
+        tests_file: Ruta al archivo .tests.yaml
+        
+    Returns:
+        Lista de TestCase parseados desde el archivo
+    """
+    content = tests_file.read_text(encoding="utf-8")
+    data = yaml.safe_load(content)
+    
+    if not data or "tests" not in data:
+        return []
+    
+    test_cases = []
+    for test_data in data["tests"]:
+        test_cases.append(TestCase(
+            name=test_data.get("name", "unnamed_test"),
+            prompt=test_data.get("prompt", ""),
+            expected_contains=test_data.get("expected_contains", []),
+            expected_not_contains=test_data.get("expected_not_contains", []),
+            expected_behavior=test_data.get("expected_behavior", ""),
+        ))
+    
+    return test_cases
+
+
 def parse_agent_markdown(file_path: Path) -> AgentDefinition:
     """
     Parsea un archivo markdown con la definición del agente.
-    Soporta dos formatos:
+    
+    Los test cases se cargan desde un archivo externo .tests.yaml si existe
+    (e.g., agents/python_expert.tests.yaml para agents/python_expert.md).
+    Si no existe archivo externo, se buscan test cases inline en el markdown
+    como fallback para compatibilidad hacia atrás.
+    
+    Soporta dos formatos de markdown:
     1. YAML frontmatter (nuevo): entre --- al inicio
     2. Formato legacy con ## Metadata
     
@@ -141,9 +186,19 @@ def parse_agent_markdown(file_path: Path) -> AgentDefinition:
     
     # Detectar si usa YAML frontmatter (nuevo formato)
     if content.startswith("---"):
-        return _parse_yaml_frontmatter(content)
+        agent_def = _parse_yaml_frontmatter(content)
     else:
-        return _parse_legacy_format(content)
+        agent_def = _parse_legacy_format(content)
+    
+    # Buscar archivo externo de tests (.tests.yaml)
+    tests_file = file_path.with_suffix(".tests.yaml")
+    if tests_file.exists():
+        external_tests = _load_tests_from_yaml_file(tests_file)
+        if external_tests:
+            agent_def.test_cases = external_tests
+            print(f"   📋 Tests cargados desde archivo externo: {tests_file.name} ({len(external_tests)} tests)")
+    
+    return agent_def
 
 
 def _parse_yaml_frontmatter(content: str) -> AgentDefinition:
