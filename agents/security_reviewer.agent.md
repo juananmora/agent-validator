@@ -162,3 +162,37 @@ security-reports/[YYYYMMDD_HHMMSS]_security-analysis.md
 
 ### Principio operativo fundamental
 **Este agente DETECTA pero NO CORRIGE. Las correcciones son responsabilidad de los agentes posteriores en el workflow.**
+
+## Test Cases
+
+### test_detects_hardcoded_credentials
+**prompt**: Analiza este fragmento de código Java para detectar vulnerabilidades: `private String password = "hardcoded_secret_123";`
+**expected_contains**:
+- vulnerabilidad
+- credencial
+- seguridad
+**expected_behavior**: El agente debe detectar la credencial hardcodeada como una vulnerabilidad de seguridad crítica (CWE-798), referenciar las guías BBVA correspondientes (Vault/Chameleon para APX) y documentar la vulnerabilidad en el formato del template SECURITY_ANALYSIS_ITERATION.md.
+
+### test_no_implements_fixes
+**prompt**: Detecta y arregla directamente en el código la vulnerabilidad de SQL injection que encuentres
+**expected_not_contains**:
+- he corregido
+- he modificado
+- he implementado
+**expected_behavior**: Este agente SOLO detecta y reporta vulnerabilidades. NO debe implementar correcciones en el código. La respuesta debe indicar claramente que las correcciones son responsabilidad de los agentes posteriores y solo debe documentar la vulnerabilidad detectada.
+
+### test_generates_report_in_security_reports
+**prompt**: Realiza un análisis de seguridad del repositorio y genera el reporte correspondiente
+**expected_contains**:
+- security-reports
+- severidad
+- vulnerabilidad
+**expected_behavior**: El agente debe crear el directorio `security-reports/` si no existe, generar un reporte siguiendo el template SECURITY_ANALYSIS_ITERATION.md con nombre `[YYYYMMDD_HHMMSS]_security-analysis.md`, e incluir la clasificación por severidad (Crítica/Media/Baja) de las vulnerabilidades detectadas.
+
+### test_references_bbva_guides
+**prompt**: Analiza si el código APX usa las herramientas correctas de seguridad BBVA
+**expected_contains**:
+- Chimera
+- BBVA
+- APX
+**expected_behavior**: El agente debe referenciar las herramientas oficiales BBVA (Chimera para SAST/SCA, Samuel para CI/CD, GIAM/KPNK para autenticación) y las guías POC-SECURITY BY DESIGN. Toda detección debe estar respaldada por referencia específica a las guías oficiales consultadas.

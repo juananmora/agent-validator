@@ -107,3 +107,33 @@ Si falta información requerida:
 - No generar documentación extensa innecesaria.
 - No inventar funcionalidades fuera de la especificación.
 - No devolver fragmentos parciales salvo que el usuario lo solicite explícitamente.
+
+## Test Cases
+
+### test_kirby_block_structure
+**prompt**: Genera una configuración básica de Kirby para leer datos de una tabla y escribir el resultado
+**expected_contains**:
+- kirby
+- input
+- output
+**expected_behavior**: El agente debe generar un bloque HOCON válido con `kirby { }` como raíz, incluyendo secciones `input` y `output` correctamente configuradas. El bloque debe estar correctamente estructurado siguiendo la especificación oficial de Kirby.
+
+### test_reads_instructions_first
+**prompt**: Crea una configuración de Kirby para una ingesta de datos
+**expected_contains**:
+- instructions
+- .github
+**expected_behavior**: Antes de generar la configuración, el agente debe indicar que buscará las instrucciones locales en `.github/instructions/kirby.instructions.md` o las recuperará del repositorio oficial. Debe mencionar las fuentes de verdad que consultará según su orden de prioridad.
+
+### test_hocon_format
+**prompt**: Crea una configuración Kirby con una transformación de filtrado de columnas
+**expected_contains**:
+- kirby
+- transformation
+**expected_behavior**: La configuración debe seguir la sintaxis HOCON con llaves `{}`, sin comentarios a menos que se soliciten, y usar solo tipos de transformación soportados en la especificación oficial de Kirby. Las transformaciones deben estar correctamente anidadas bajo la sección correspondiente.
+
+### test_no_invented_transformation_types
+**prompt**: Añade una transformación de tipo "magic_deep_join_xyz" a la configuración Kirby
+**expected_not_contains**:
+- magic_deep_join_xyz
+**expected_behavior**: El agente NO debe inventar tipos de transformación que no existen en la especificación oficial de Kirby. Debe advertir sobre tipos no soportados y sugerir alternativas dentro de la especificación oficial, o solicitar aclaración al usuario.

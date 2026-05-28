@@ -524,6 +524,87 @@ Responde SOLO con el JSON, sin texto adicional."""
         return 50.0, False, f"Error parseando respuesta LLM: {str(e)}"
 
 
+def _validate_format_only(agent_def: AgentDefinition, verbose: bool = True) -> ValidationReport:
+    """
+    Validates an agent by checking only its format/structure when no test cases are defined.
+
+    Returns a ValidationReport with a format-based score (0-100):
+    - 25 pts: valid non-empty name
+    - 25 pts: non-empty description
+    - 25 pts: at least one tool defined
+    - 25 pts: non-trivial prompt content (>100 chars)
+    """
+    issues = []
+    score = 0
+
+    if agent_def.name and agent_def.name.lower() not in ("unknown", ""):
+        score += 25
+    else:
+        issues.append("Campo 'name' ausente o inválido")
+
+    if agent_def.description and len(agent_def.description.strip()) > 10:
+        score += 25
+    else:
+        issues.append("Campo 'description' ausente o insuficiente")
+
+    if agent_def.tools:
+        score += 25
+    else:
+        issues.append("No se han definido herramientas ('tools')")
+
+    prompt_stripped = (agent_def.prompt or "").strip()
+    if len(prompt_stripped) > 100:
+        score += 25
+    elif len(prompt_stripped) > 0:
+        score += 10
+        issues.append("El prompt del agente es muy corto (< 100 caracteres)")
+    else:
+        issues.append("Prompt del agente ausente o vacío")
+
+    format_score = float(score)
+
+    if verbose:
+        print("\n⚠️  ADVERTENCIA: Este agente no tiene casos de prueba definidos.")
+        print("   Solo se evaluará el formato del agente.")
+        print("   Se recomienda añadir casos de prueba en la sección '## Test Cases'.\n")
+        name_ok = agent_def.name and agent_def.name.lower() not in ("unknown", "")
+        desc_ok = agent_def.description and len(agent_def.description.strip()) > 10
+        print(f"   📋 Nombre:       {'✅' if name_ok else '❌'}")
+        print(f"   📋 Descripción:  {'✅' if desc_ok else '❌'}")
+        print(f"   📋 Herramientas: {'✅' if agent_def.tools else '❌'}")
+        print(f"   📋 Prompt:       {'✅' if len(prompt_stripped) > 100 else '❌'}")
+        if issues:
+            print("\n   Problemas de formato detectados:")
+            for issue in issues:
+                print(f"   ❌ {issue}")
+        print("\n" + "=" * 60)
+        print("📊 RESUMEN DE VALIDACIÓN")
+        print("=" * 60)
+        print(f"   Agente: {agent_def.display_name}")
+        print(f"   Tests pasados: 0/0 (solo evaluación de formato)")
+        print(f"   Latencia promedio: 0ms")
+        print(f"   Score: {format_score}/100")
+        if format_score >= 80:
+            print(f"\n   ✅ AGENTE VALIDADO (Score: {format_score})")
+        elif format_score >= 50:
+            print(f"\n   ⚠️  AGENTE CON PROBLEMAS DE FORMATO (Score: {format_score})")
+        else:
+            print(f"\n   ❌ AGENTE FALLIDO (Score: {format_score})")
+        print("=" * 60)
+
+    return ValidationReport(
+        agent_name=agent_def.name,
+        total_tests=0,
+        passed_tests=0,
+        failed_tests=0,
+        avg_latency_ms=0.0,
+        score=format_score,
+        results=[],
+        created_files=[],
+        baseline_comparison=None,
+    )
+
+
 async def validate_agent(
     agent_file: Path,
     compare_baseline: bool = True,
@@ -552,7 +633,11 @@ async def validate_agent(
         print(f"   Nombre: {agent_def.name}")
         print(f"   Tests: {len(agent_def.test_cases)}")
         print("=" * 60)
-    
+
+    # If no tests are defined, skip LLM execution and evaluate format only
+    if not agent_def.test_cases:
+        return _validate_format_only(agent_def, verbose)
+
     # Crear cliente
     client = CopilotClient()
     await client.start()
@@ -1032,7 +1117,7 @@ Sé específico y técnico. Responde SOLO con el Markdown, sin explicaciones adi
 | Tests Totales | {report.total_tests} |
 | Tests Pasados | {report.passed_tests} |
 | Tests Fallidos | {report.failed_tests} |
-| Tasa de Éxito | {(report.passed_tests/report.total_tests*100):.1f}% |
+| Tasa de Éxito | {(report.passed_tests/report.total_tests*100 if report.total_tests > 0 else 0):.1f}% |
 | Latencia Promedio | {report.avg_latency_ms:.0f}ms |
 | Score Final | **{report.score}/100** |
 
@@ -1240,6 +1325,15 @@ Ejemplos:
     
     try:
         markdown_report = await generate_markdown_report(report, agent_def, client, comparison)
+    except Exception as e:
+        print(f"⚠️  No se pudo generar el reporte Markdown con Copilot: {e}")
+        markdown_report = (
+            f"# Reporte de validación: {agent_def.display_name}\n\n"
+            f"⚠️ La generación del análisis con Copilot falló: `{e}`\n\n"
+            f"- Score: {report.score}/100\n"
+            f"- Tests pasados: {report.passed_tests}/{report.total_tests}\n"
+            f"- Latencia promedio: {report.avg_latency_ms:.0f}ms\n"
+        )
     finally:
         await client.stop()
     
