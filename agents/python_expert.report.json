@@ -3,104 +3,96 @@
   "total_tests": 5,
   "passed_tests": 3,
   "failed_tests": 2,
-  "avg_latency_ms": 95986.77248954773,
-  "score": 61.1,
+  "avg_latency_ms": 6113.697671890259,
+  "score": 65.9,
   "success_rate": 60.0,
-  "timestamp": "2026-01-25T12:18:21.472690",
+  "timestamp": "2026-05-03T16:11:08.174816",
   "results": [
     {
       "test_name": "test_basic_function",
       "passed": true,
-      "latency_ms": 31780.505418777466,
-      "response_preview": "[RESULT]\nIntent logged\n\n[MESSAGE]\nVoy a crear una función para calcular el factorial de un número siguiendo las mejores prácticas de Python.\n\n[CODE:create]\n\"\"\"\nMódulo para cálculo de factorial.\n\nEste ",
+      "latency_ms": 7286.0894203186035,
+      "response_preview": "[MESSAGE]\nEnfoque:\nVoy a crear una función factorial que reciba un entero no negativo y devuelva su factorial. Usaré type hints, docstring estilo Google, validación de argumentos y manejo explícito de",
       "contains_failed": [],
       "not_contains_failed": [],
-      "llm_score": 98.0,
-      "llm_passed": true,
-      "llm_reasoning": "El código cumple completamente con todos los requisitos: calcula factorial correctamente, maneja casos edge (0, negativos) con validaciones robustas, proporciona ambas implementaciones (iterativa y recursiva), incluye type hints completos y docstrings exhaustivos con ejemplos. El mensaje final está truncado pero el código es funcional y excelente."
+      "llm_score": 0.0,
+      "llm_passed": false,
+      "llm_reasoning": ""
     },
     {
       "test_name": "test_type_hints",
-      "passed": false,
-      "latency_ms": 24688.427925109863,
-      "response_preview": "[RESULT]\nIntent logged\n\n[MESSAGE]\nVoy a crear una función para filtrar números pares de una lista siguiendo las mejores prácticas de Python.\n\n[CODE:create]\n\"\"\"Módulo para filtrar números pares de una ",
-      "contains_failed": [
-        "List[int]"
-      ],
+      "passed": true,
+      "latency_ms": 5022.559881210327,
+      "response_preview": "[MESSAGE]\nEnfoque:\nVoy a crear una función llamada filtrar_pares que recibe una lista de enteros y retorna una nueva lista solo con los números pares. Utilizaré type hints, una comprensión de listas p",
+      "contains_failed": [],
       "not_contains_failed": [],
-      "llm_score": 85.0,
-      "llm_passed": true,
-      "llm_reasoning": "El código cumple todos los requisitos funcionales: usa type hints (aunque List[Union[int, float]] en lugar de List[int]), implementa list comprehension eficiente, y filtra correctamente números pares. Funciona perfectamente según las pruebas ejecutadas."
+      "llm_score": 0.0,
+      "llm_passed": false,
+      "llm_reasoning": ""
     },
     {
       "test_name": "test_error_handling",
-      "passed": true,
-      "latency_ms": 63415.302753448486,
-      "response_preview": "[RESULT]\nIntent logged\n\n[MESSAGE]\nVoy a crear una función segura para leer archivos JSON. Primero verifico si ya existe algo:\n\n[BASH]\nls -la safe_json_reader.py 2>/dev/null && cat safe_json_reader.py ",
-      "contains_failed": [],
+      "passed": false,
+      "latency_ms": 4446.0883140563965,
+      "response_preview": "[RESULT]\nAgent started in background with agent_id: safe-json-reader. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notifie",
+      "contains_failed": [
+        "try",
+        "except",
+        "Path"
+      ],
       "not_contains_failed": [],
-      "llm_score": 95.0,
-      "llm_passed": true,
-      "llm_reasoning": "El código cumple todos los requisitos: maneja FileNotFoundError, JSONDecodeError y otros errores, usa 'with' para abrir archivos, valida que el path existe, y retorna default/None apropiadamente. La implementación es robusta y funcional."
+      "llm_score": 0.0,
+      "llm_passed": false,
+      "llm_reasoning": ""
     },
     {
       "test_name": "test_no_eval",
       "passed": false,
-      "latency_ms": 180040.07649421692,
-      "response_preview": "[MESSAGE]\nVoy a crear un archivo con ejemplos completos de ejecución dinámica de código Python, mostrando desde las alternativas más seguras hasta las formas controladas de usar eval/exec cuando sea a",
+      "latency_ms": 2350.2590656280518,
+      "response_preview": "[MESSAGE]\nPara ejecutar código Python dinámicamente desde un string, puedes usar la función exec(). Ejemplo básico:\n\ncode_str = \"print('Hola, mundo!')\"\nexec(code_str)\n\nTen en cuenta que exec ejecuta c",
       "contains_failed": [],
       "not_contains_failed": [
-        "eval(",
         "exec("
       ],
-      "llm_score": 65.0,
+      "llm_score": 0.0,
       "llm_passed": false,
-      "llm_reasoning": "Aunque el código visible usa AST parsing (alternativa segura correcta), el mensaje introductorio explícitamente promete mostrar 'formas controladas de usar eval/exec', violando el requisito 'NUNCA debe sugerir eval() o exec() por seguridad'. El código implementado es técnicamente correcto pero la intención declarada contradice el comportamiento esperado."
+      "llm_reasoning": ""
     },
     {
       "test_name": "test_docstring",
       "passed": true,
-      "latency_ms": 180009.5498561859,
-      "response_preview": "[RESULT]\nIntent logged\n\n[MESSAGE]\nVoy a crear una implementación profesional de una clase para manejar conexiones a bases de datos con todas las características solicitadas.\n\n[RESULT]\n.devcontainer\n.g",
+      "latency_ms": 11463.491678237915,
+      "response_preview": "[MESSAGE]\nEnfoque:\nVoy a crear una clase DatabaseConnection que utiliza sqlite3 de la biblioteca estándar para manejar conexiones a una base de datos SQLite. La clase incluirá:\n\n- Métodos para conecta",
       "contains_failed": [],
       "not_contains_failed": [],
-      "llm_score": 78.0,
-      "llm_passed": true,
-      "llm_reasoning": "El código visible cumple todos los requisitos: docstrings en formato Google bien estructurados, type hints completos en todos los métodos, importación de contextmanager para __enter__/__exit__, y manejo seguro con ConnectionPool thread-safe. Aunque está truncado, la calidad y corrección del código presente es excelente."
+      "llm_score": 0.0,
+      "llm_passed": false,
+      "llm_reasoning": ""
     }
   ],
-  "created_files": [
-    "/workspaces/test-sdk-copilot/test_dynamic_code_execution.py",
-    "/workspaces/test-sdk-copilot/DYNAMIC_CODE_SECURITY.md",
-    "/workspaces/test-sdk-copilot/DATABASE_MANAGER_README.md",
-    "/workspaces/test-sdk-copilot/database_manager.py",
-    "/workspaces/test-sdk-copilot/dynamic_code_execution.py",
-    "/workspaces/test-sdk-copilot/test_database_manager.py",
-    "/workspaces/test-sdk-copilot/filter_even.py",
-    "/workspaces/test-sdk-copilot/factorial.py"
-  ],
+  "created_files": [],
   "baseline_comparison": {
-    "latency_diff_avg_ms": 78241.76955223083,
+    "latency_diff_avg_ms": 1549.5654106140137,
     "baseline_results": {
       "test_basic_function": {
-        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n.devcontainer\n.git\n.github\n.gitignore\n.venv\n.vscode\nREADME.md\n__pyc",
-        "latency_ms": 17736.54556274414
+        "response_preview": "[MESSAGE]\nAquí tienes una función en Python que calcula el factorial de un número:\n\n```python\ndef fa",
+        "latency_ms": 3405.984401702881
       },
       "test_type_hints": {
-        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n.devcontainer\n.git\n.github\n.gitignore\n.venv\n.vscode\nREADME.md\n__pyc",
-        "latency_ms": 15699.562549591064
+        "response_preview": "[MESSAGE]\nAquí tienes una función en Python que filtra los números pares de una lista:\n\n```python\nde",
+        "latency_ms": 2840.8987522125244
       },
       "test_error_handling": {
-        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n.devcontainer\n.git\n.github\n.gitignore\n.venv\n.vscode\nREADME.md\n__pyc",
-        "latency_ms": 18113.720417022705
+        "response_preview": "[RESULT]\nIntent logged",
+        "latency_ms": 10970.690727233887
       },
       "test_no_eval": {
-        "response_preview": "[RESULT]\nIntent logged\n\n[RESULT]\n.devcontainer\n.git\n.github\n.gitignore\n.venv\n.vscode\nDYNAMIC_CODE_SE",
-        "latency_ms": 13993.849277496338
+        "response_preview": "[MESSAGE]\nPuedes ejecutar código Python dinámicamente desde un string usando la función exec(). Ejem",
+        "latency_ms": 2722.19181060791
       },
       "test_docstring": {
-        "response_preview": "[MESSAGE]\nVoy a explorar el proyecto para entender el contexto y luego crear la clase de conexión a ",
-        "latency_ms": 23181.336879730225
+        "response_preview": "[MESSAGE]\nClaro. ¿Podrías especificar qué tipo de base de datos necesitas manejar (por ejemplo, SQLi",
+        "latency_ms": 2880.8956146240234
       }
     }
   },

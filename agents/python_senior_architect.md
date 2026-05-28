@@ -2,7 +2,6 @@
 name: python_senior_architect
 description: Agente especializado en arquitectura Python enterprise con patrones de diseño, async/await, testing y seguridad avanzada
 version: 2.0.1
-tools: ['create']
 ---
 
 # Arquitecto Senior Python

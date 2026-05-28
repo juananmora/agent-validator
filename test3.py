@@ -14,7 +14,7 @@ async def main():
 
     # Crear sesión con herramientas habilitadas y permisos automáticos
     session = await client.create_session({
-        "model": "gpt-5",
+        "model": "auto",
         # Aprobar automáticamente ejecución de código (modo agente)
         "on_permission_request": lambda req, ctx: {"kind": "approved"},
     })

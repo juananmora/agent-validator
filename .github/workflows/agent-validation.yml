@@ -22,14 +22,19 @@ on:
         required: false
         default: '70'
       model:
-        description: 'Modelo LLM a usar (ej: gpt-4o, gpt-4o-mini, claude-sonnet-4)'
+        description: 'Modelo LLM a usar (ej: gpt-4.1, gpt-5.4, claude-sonnet-4.5)'
         required: false
-        default: 'gpt-4o'
+        default: 'gpt-4.1'
+      timeout:
+        description: 'Timeout en segundos por test (default: 60)'
+        required: false
+        default: '60'
 
 env:
   QUALITY_THRESHOLD: ${{ github.event.inputs.threshold || '70' }}
   ENABLE_LLM_JUDGE: 'true'
-  MODEL: ${{ github.event.inputs.model || 'gpt-4o' }}
+  MODEL: ${{ github.event.inputs.model || 'gpt-4.1' }}
+  TIMEOUT: ${{ github.event.inputs.timeout || '60' }}
 
 jobs:
   validate-agents:
@@ -45,12 +50,12 @@ jobs:
       # 1. SETUP
       # ============================================
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -187,6 +192,7 @@ jobs:
               echo "   --threshold: ${{ env.QUALITY_THRESHOLD }}"
               echo "   --llm-judge: ${{ env.ENABLE_LLM_JUDGE }}"
               echo "   --model: ${{ env.MODEL }}"
+              echo "   --timeout: ${{ env.TIMEOUT }}"
               echo "   --output: $RESULTS_DIR/${agent%.md}.json"
               echo ""
               echo ">>> Validator output start <<<"
@@ -196,6 +202,7 @@ jobs:
                 --threshold ${{ env.QUALITY_THRESHOLD }} \
                 --llm-judge ${{ env.ENABLE_LLM_JUDGE }} \
                 --model ${{ env.MODEL }} \
+                --timeout ${{ env.TIMEOUT }} \
                 --output "$RESULTS_DIR/${agent%.md}.json" \
                 --verbose \
                 2>&1 | tee "$RESULTS_DIR/${agent%.md}.log" || true
@@ -244,7 +251,7 @@ jobs:
           echo -e "$SUMMARY" > "$RESULTS_DIR/summary.txt"
           
       - name: 📊 Upload validation reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: validation-reports
           path: validation_results/

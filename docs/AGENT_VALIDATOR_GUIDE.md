@@ -608,7 +608,7 @@ python agent_validator.py <agent_file> [opciones]
 | Argumento | Descripción | Default |
 |-----------|-------------|----------|
 | `agent_file` | Ruta al archivo del agente (.md) | Requerido |
-| `--model` | Modelo LLM a usar | gpt-4o |
+| `--model` | Modelo LLM a usar | gpt-5.4 |
 | `--output`, `-o` | Archivo de salida para el reporte | agents/<name>.report.md |
 | `--threshold` | Umbral mínimo de score | 70 |
 | `--llm-judge` | Habilitar evaluación LLM | true |
@@ -617,12 +617,12 @@ python agent_validator.py <agent_file> [opciones]
 ### Ejemplos
 
 ```bash
-# Validación básica (usa gpt-4o por defecto)
+# Validación básica (usa gpt-5.4 por defecto)
 python agent_validator.py agents/mi_agente.md
 
 # Especificar modelo
-python agent_validator.py agents/mi_agente.md --model gpt-4o-mini
-python agent_validator.py agents/mi_agente.md --model claude-sonnet-4-20250514
+python agent_validator.py agents/mi_agente.md --model gpt-4.1
+python agent_validator.py agents/mi_agente.md --model claude-sonnet-4.5
 
 # Umbral personalizado
 python agent_validator.py agents/mi_agente.md --threshold 80
