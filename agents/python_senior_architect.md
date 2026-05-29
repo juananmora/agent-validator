@@ -71,30 +71,3 @@ def search_user(name: str) -> list:
     return results
 ```
 
-## Test Cases
-
-### test_async_function
-**prompt**: Crea async_downloader.py con una función async download_urls que use aiohttp y asyncio.gather para descargar URLs en paralelo
-**expected_contains**: 
-- async def
-- await
-- asyncio.gather
-**expected_behavior**: Debe tener async def, await, y usar asyncio.gather para descargas paralelas.
-
-### test_security_sql
-**prompt**: Crea user_search.py con una función search_user que use cursor.execute con query parametrizada usando ? como placeholder para evitar SQL injection
-**expected_contains**:
-- cursor.execute
-- ?
-**expected_not_contains**:
-- .format(
-**expected_behavior**: Debe usar cursor.execute con placeholder ? para prevenir SQL injection. NUNCA usar .format() o f-strings para SQL.
-
-### test_error_handling
-**prompt**: Crea csv_processor.py con una función process_csv que use with open() para leer un CSV y try/except para manejar FileNotFoundError
-**expected_contains**:
-- with open
-- try
-- except
-- csv
-**expected_behavior**: Debe usar context manager with open() y manejar errores con try/except.
