@@ -636,7 +636,7 @@ python agent_validator.py <agent_file> [opciones]
 python agent_validator.py agents/mi_agente.md
 
 # Especificar modelo
-python agent_validator.py agents/mi_agente.md --model gpt-4.1
+python agent_validator.py agents/mi_agente.md --model gpt-4o
 python agent_validator.py agents/mi_agente.md --model claude-sonnet-4.5
 
 # Umbral personalizado
