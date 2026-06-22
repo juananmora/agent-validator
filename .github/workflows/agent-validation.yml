@@ -22,9 +22,9 @@ on:
         required: false
         default: '70'
       model:
-        description: 'Modelo LLM a usar (ej: gpt-4o, gpt-5.4, claude-sonnet-4.5)'
+        description: 'Modelo LLM a usar (ej: gpt-5, claude-sonnet-4.5, claude-haiku-4.5)'
         required: false
-        default: 'gpt-4o'
+        default: 'claude-sonnet-4.5'
       timeout:
         description: 'Timeout en segundos por test (default: 60)'
         required: false
@@ -33,7 +33,7 @@ on:
 env:
   QUALITY_THRESHOLD: ${{ github.event.inputs.threshold || '70' }}
   ENABLE_LLM_JUDGE: 'true'
-  MODEL: ${{ github.event.inputs.model || 'gpt-4o' }}
+  MODEL: ${{ github.event.inputs.model || 'claude-sonnet-4.5' }}
   TIMEOUT: ${{ github.event.inputs.timeout || '60' }}
 
 jobs:
