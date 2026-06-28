@@ -23,7 +23,7 @@ from typing import Any, Callable
 from copilot import CopilotClient
 
 # Modelo por defecto para las sesiones de Copilot
-DEFAULT_MODEL = "gpt-5.4"
+DEFAULT_MODEL = "claude-sonnet-4.5"
 AUTH_ERROR_MARKERS = (
     "Session was not created with authentication info or custom provider",
     "No authentication information found",
@@ -387,7 +387,7 @@ async def run_test_with_agent(
         prompt: Prompt a enviar
         agent_config: Configuración del agente (None para baseline)
         timeout: Timeout en segundos
-        model: Modelo a usar (default: GPT-5.4)
+        model: Modelo a usar (default: claude-sonnet-4.5)
         
     Returns:
         Tuple con (respuesta_completa, latencia_ms, archivos_creados)
@@ -567,7 +567,7 @@ async def evaluate_with_llm(
         response: Respuesta del agente
         expected_behavior: Descripción del comportamiento esperado
         timeout: Timeout en segundos
-        model: Modelo a usar (default: GPT-5.4)
+        model: Modelo a usar (default: claude-sonnet-4.5)
         
     Returns:
         Tuple con (score 0-100, passed, reasoning)
@@ -804,7 +804,7 @@ async def validate_agent(
         agent_file: Ruta al archivo markdown del agente
         compare_baseline: Si comparar con el agente base
         verbose: Si imprimir progreso
-        model: Modelo a usar (default: GPT-5.4)
+        model: Modelo a usar (default: claude-sonnet-4.5)
         
     Returns:
         ValidationReport con todos los resultados
@@ -1355,7 +1355,7 @@ async def generate_markdown_report(
         agent_def: Definición del agente
         client: Cliente de Copilot
         comparison: Comparación histórica (opcional)
-        model: Modelo a usar (default: GPT-5.4)
+        model: Modelo a usar (default: claude-sonnet-4.5)
         
     Returns:
         Contenido del reporte en Markdown
@@ -1566,7 +1566,7 @@ Ejemplos:
   python agent_validator.py agents/python_expert.md
   python agent_validator.py agents/sql_expert.md --threshold 80
   python agent_validator.py agents/devops.md --llm-judge true --output report.json
-  python agent_validator.py agents/devops.md --model gpt-5.4
+  python agent_validator.py agents/devops.md --model claude-sonnet-4.5
   python agent_validator.py agents/devops.md --model claude-sonnet-4
         """
     )

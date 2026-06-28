@@ -12,7 +12,7 @@ async def main():
     })
     await client.start()
 
-    session = await client.create_session({"model": "gpt-5.4"})
+    session = await client.create_session({"model": "claude-sonnet-4.5"})
 
     done = asyncio.Event()
 
